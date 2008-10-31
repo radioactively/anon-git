@@ -1,40 +1,47 @@
 # ANON GIT
 
-AnonGit is a small set of shell scripts to help contributors **anonymize** their Git commit authorship and timestamps.
+AnonGit is a script to **anonymize** git commit authorship and timestamp.
 
 Useful when you want to contribute to privacy-sensitive, anti-surveillance, or censorship-resistant open-source projects **without linking your real identity** to your contributions through commit metadata.
+
+The script can:
+
+- Anonymize entire git history
+- Anonymize single commit
+- Anonymize multiple commits
+- Anonymize commits filtered by author/commiter, date range, or commit message
+- Anonymize metadata using arbitrary values for user name, user email and date
+- Anonymize just the timestamps (keep authorship) or the username (keep timestamp)
+- Anonymize the timestamps partially: preserve commit year or month or day while anonymizing other information (hour & timezone)
 
 ## Why anonymize Git commits?
 
 Many privacy & freedom-oriented projects prefer (or even require) contributors to avoid leaking personal metadata:
 
-- **Network anonymity & censorship resistance**
+- **Internet anonymity**
   - Tor Browser
   - I2P
-  - Lokinet
-  - Briar
-  - Cwtch Network
-- **Private & untraceable finance / markets**
+  - FreeNet
+- **Private finace**
   - Monero
   - Bisq
-  - Haveno
   - Samourai Wallet
-  - Wasabi Wallet
-  - JoinMarket
-  - Robosats
-- **Mobile & device privacy**
+  - CoinJoin tools
+- **Mobile OS**
   - GrapheneOS
   - CalyxOS
-  - /e/OS
-  - DivestOS
-- **Self-sovereignty, self-hosting & anti-surveillance tools**
-  - Matrix & XMPP implementations
-  - Nextcloud & ownCloud
-  - Mullvad Browser & LibreWolf
-  - Nym mixnet tools
-  - Secure Scuttlebutt
-  - F-Droid repositories
-  - Privacy Guides translations & tooling
+- **Communication protocols**
+  - Simplex
+  - Matrix
+  - Briar
+  - XMPP
+- **Social network**
+  - Nostr
+  - Mastodon
+  - Scuttlebutt
+- **Privacy guides**
+  - KYC Not Me (kycnot.me)
+  - Digital Defense (digitaldefense.io)
 
 (The list above is not meant to be a compilation of privacy tools, but merely examples of projects whose contributors may wish to stay anonymous).
 
@@ -122,6 +129,9 @@ More examples using built-in filters provided by `git` in order to pick a set of
 commits matching the filter:
 
 ```bash
+# Anonymize the last 10 commits using shell expansion (works in bash and zsh)
+./anon-git.sh HEAD~{0..9}
+
 # Anonymize commits within a specific date range
 git log --format=%H after='2023-01-01' --before='2024-01-01' | xargs ./anon-git
 
@@ -210,30 +220,9 @@ This gives seamless "anonymous-by-default" committing while still allowing manua
 - `--keep-user` and `--keep-date` are useful for partial anonymization
 - Timestamps must be in a format `git` understands (ISO 8601 with timezone recommended)
 
-## Security & Threat model notes
+## Additional security notes
 
-- These scripts **remove metadata only** — they do **not** hide IP addresses, contribution timing correlations, writing style, code patterns, etc.
-- Use **Tor + fresh identity** when pushing to public forges (GitHub, GitLab, Codeberg, …)
+- AnonGit **remove metadata only** — it does **not** hide IP addresses, contribution timing correlations, writing style, code patterns, etc.
+- For higher opsec, use anonymous accounts not tied to personal identity
 - Consider squashing commits or using merge requests from anonymous remotes
-- For highest opsec: use dedicated anonymous VM/container + Tor + throwaway forge account + these scripts
-- **Never** commit private keys, passwords, personal emails, real names, or identifying strings — even with anonymized metadata
-
-## ROADMAP
-
-- [x] Anonymizes entire history
-- [x] Anonymizes single commit
-- [x] Anonymizes set of commits
-- [x] Anonymizes set of commits filtered by author, commiter, date (before or after), or commit message
-- [x] Add option `--date` to set user date
-- [x] Add option `--email` to set user email
-- [x] Add option `--name` to set user name
-- [x] Add option `--keep-user` to keep user name & email
-- [x] Add option `--keep-date` to keep timestamps
-- [x] Add option `--keep-year` to keep year in commit timestamp
-- [x] Add option `--keep-month` to keep month in commit timestamp
-- [x] Add option `--keep-day` to keep day in commit timestamp
-- [x] Add option `--no-confirm` to skip confirmation prompt
-- [x] Add option `--no-backup` to skip backup creation
-- [ ] Add more tests to cover missing cases
-
-**Note**: the `--keep-*` flags may be useful for contribution statistics but provide less privacy.
+- Beaware when you publish to public forges (GitHub, GitLab, Codeberg, ...)
