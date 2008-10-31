@@ -234,6 +234,26 @@ if [[ "$NOBACKUP_ARG" != "1" ]]; then
 fi
 
 # ──────────────────────────────────────────────────────────────────────
+# CLEAN CACHE
+
+# git-filter-repo stores metadata in .git/filter-repo/ after the first run (to
+# speed up certain operations and support things like incremental/incremental
+# filtering). When you run it again, it tries to reuse that metadata, but under
+# some conditions (particularly if the previous filtering pruned certain
+# refs/objects or if the repo state changed in subtle ways), the assumption in the
+# code breaks and it hits this assertion.
+#
+# This a known bug in git-filter-repo that can occur when you run the tool multiple
+# times on the same repository (especially if you ran it once successfully, then
+# tried again or with slightly different options).
+#
+# To avoid this bug, we remove cached metadata, which may cause trouble while
+# anonymizing the git history, for example, when using the script as git hook.
+if [[ -d "$PWD/.git/filter-repo" ]]; then
+    rm -rf "$PWD/.git/filter-repo"
+fi
+
+# ──────────────────────────────────────────────────────────────────────
 # REWRITE LOGIC
 
 git filter-repo --force --commit-callback "
@@ -294,11 +314,14 @@ git filter-repo --force --commit-callback "
                 ts = int(dt.timestamp())
 
                 # handle timezone
-                offset_seconds = int(dt.utcoffset().total_seconds())
-                offset_hours = offset_seconds // 60
-                offset_mins = offset_seconds % 60
-                offset_sign = '+' if offset_seconds >= 0 else '-'
-                offset = '%s%02d%02d' % (offset_sign, offset_hours, offset_mins)
+                if dt.utcoffset():
+                    offset_seconds = int(dt.utcoffset().total_seconds())
+                    offset_hours = offset_seconds // 60
+                    offset_mins = offset_seconds % 60
+                    offset_sign = '+' if offset_seconds >= 0 else '-'
+                    offset = '%s%02d%02d' % (offset_sign, offset_hours, offset_mins)
+                else:
+                    offset = '+0000'
 
             # date formartted
             date_as_bytes = b'%d %s' % (ts, offset.encode())
