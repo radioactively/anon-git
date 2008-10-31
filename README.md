@@ -112,6 +112,8 @@ Rewrite **one commit** (author, committer, dates).
   --no-confirm                    Do not prompt for confirmation
   --no-backup                     Do not create backup branch
   --entire-history                Rewrite entire history and not a single commit
+  --current-branch                Overwrite current branch and not a copy of it
+  --dry-run                       Show history changes without rewriting them
 ```
 
 **Priority order** (highest to lowest):
@@ -148,9 +150,6 @@ commits matching the filter:
 
 # Anonymize commits within a specific date range
 git log --format=%H after='2023-01-01' --before='2024-01-01' | xargs ./anon-git
-
-# Anonymize commits where the commit author matches a pattern
-git log --format=%H author='Frederic' | xargs ./anon-git
 
 # Anonymize commits where the commit author matches a pattern
 git log --format=%H author='Frederic' | xargs ./anon-git
