@@ -225,3 +225,18 @@ This gives seamless "anonymous-by-default" committing while still allowing manua
 - Consider squashing commits or using merge requests from anonymous remotes
 - For highest opsec: use dedicated anonymous VM/container + Tor + throwaway forge account + these scripts
 - **Never** commit private keys, passwords, personal emails, real names, or identifying strings — even with anonymized metadata
+
+## ROADMAP
+
+- [x] Add commit anonymization script
+- [x] Add history anonymization script
+- [x] Add option `--date` to set user date
+- [x] Add option `--email` to set user email
+- [x] Add option `--name` to set user name
+- [x] Add option `--keep-user` to keep user name & email
+- [x] Add option `--keep-date` to keep timestamps
+- [ ] Add option `--preserve-year` to keep year in commit timestamp
+- [ ] Add option `--preserve-month` to keep month in commit timestamp
+- [ ] Add option `--preserve-day` to keep day in commit timestamp
+
+**Note**: options `--keep-user`, `--kep-date`, `--preserve-year`, `--preserve-month` and `--preserve-day` may be useful for contribution statistics but provide less privacy.
