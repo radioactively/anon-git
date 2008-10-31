@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
-
 show_help() {
     cat << 'EOF'
 Anonymize a single git commit's author, committer, and dates.

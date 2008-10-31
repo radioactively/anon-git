@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
-
 # Assume anonymize-git-history.sh is in the parent directory
-SCRIPT_DIR=$(realpath "$(dirname $0)/..")
+SCRIPT_DIR=$(realpath "$(dirname "$0")/..")
 SCRIPT_NAME=anonymize-git-history.sh
 SCRIPT=${SCRIPT_DIR}/${SCRIPT_NAME}
 
@@ -18,26 +16,61 @@ git config --local user.name "Test User"
 git config --local user.email "test@example.com"
 
 # Make dummy commits
-for i in $(seq 1 5); do
+commit_count=5
+for i in $(seq 1 "$commit_count"); do
   filename="file_${i}.txt"
   echo "This is file $i" >"$filename"
   git add "$filename" >/dev/null
   git commit -m "Add file $filename" >/dev/null
 done
 
-# run script
+# Run script
 echo y | bash ./${SCRIPT_NAME} >/dev/null 2>&1
 
-# Check new log
-NEW_LOG=$(git log --pretty=fuller --date=iso)
-
-# Verify changes
-if [[ $NEW_LOG == *'Satoshi Nakamoto'* ]] && [[ $NEW_LOG == *'satoshi@gmx.com'* ]] && [[ $NEW_LOG == *'2008-10-31'* ]]; then
-  echo "Test passed: history anonymized."
-else
-  echo "Test failed."
-fi
+# Store log
+LOG=$(git log --pretty=fuller --date=iso)
 
 # Cleanup
-cd -
+cd - >/dev/null || exit 0
 rm -rf "$TMP_DIR"
+
+# Check results
+
+## expected values
+default_date=$(grep '^DEFAULT_DATE=' "$SCRIPT" | sed -e "s/DEFAULT_DATE='//" -e "s/'\$//")
+default_name=$(grep '^DEFAULT_NAME=' "$SCRIPT" | sed -e "s/DEFAULT_NAME='//" -e "s/'\$//")
+default_email=$(grep '^DEFAULT_EMAIL=' "$SCRIPT" | sed -e "s/DEFAULT_EMAIL='//" -e "s/'\$//")
+expected_author="${default_name} <${default_email}>"
+expected_date="${default_date}"
+
+## Real values
+author_matches=$(grep --count "^Author:\s\+${expected_author}" <<<"$LOG")
+commiter_matches=$(grep --count "^Commit:\s\+${expected_author}" <<<"$LOG")
+author_date_matches=$(grep --count "^AuthorDate:\s\+${expected_date}" <<<"$LOG")
+commiter_date_matches=$(grep --count "^CommitDate:\s\+${expected_date}" <<< "$LOG")
+
+## Error feedback if any
+errors=0
+if [[ "$author_matches" -ne "$commit_count" ]]; then
+  printf 'Error: author name & email not overwrriten\n'
+  errors=$(( errors + 1 ))
+fi
+if [[ "$commiter_matches" -ne "$commit_count" ]]; then
+  printf 'Error: commiter name & email not overwrriten\n'
+  errors=$(( errors + 1 ))
+fi
+if [[ "$author_date_matches" -ne "$commit_count" ]]; then
+  printf 'Error: author date not overwrriten\n'
+  errors=$(( errors + 1 ))
+fi
+if [[ "$commiter_date_matches" -ne "$commit_count" ]]; then
+  printf 'Error: commiter date not overwrriten\n'
+  errors=$(( errors + 1 ))
+fi
+
+## Show results.
+if [[ "$errors" -eq 0 ]]; then
+  printf 'Test passed.\n'
+else
+  printf "Test failed with %s errors.\n" "$errors"
+fi

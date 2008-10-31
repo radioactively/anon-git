@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
-
 show_help() {
     cat << 'EOF'
 Anonymize the entire git history of the current branch.
