@@ -256,6 +256,7 @@ fi
 # ──────────────────────────────────────────────────────────────────────
 # REWRITE LOGIC
 
+export TZ=UTC
 git filter-repo --force --commit-callback "
     from datetime import datetime, timedelta, timezone
 
@@ -298,6 +299,7 @@ git filter-repo --force --commit-callback "
                 # create date object
                 ts = float(unix_ts)
                 dt = datetime.fromtimestamp(ts, tz=tz)
+                dt = datetime.strptime('%d-%d-%d' % (dt.year, dt.month, dt.day), '%Y-%m-%d')
 
                 # anonymize date object
                 dt =  dt.replace(hour=0, minute=0, second=0)
