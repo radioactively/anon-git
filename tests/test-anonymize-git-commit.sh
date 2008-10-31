@@ -12,8 +12,13 @@ cp "$SCRIPT" .
 chmod +x "./${SCRIPT_NAME}"
 
 # Global variables shared among functions
+
 COMMIT_COUNT=20
-TEST_INDEX=0
+CURRENT_TEST_INDEX=0
+TESTS_PASSED=0
+TESTS_FAILED=0
+TOTAL_ERRORS=0
+
 DEFAULT_DATE=$(grep '^DEFAULT_DATE=' "$SCRIPT" | sed -e "s/DEFAULT_DATE='//" -e "s/'\$//")
 DEFAULT_NAME=$(grep '^DEFAULT_NAME=' "$SCRIPT" | sed -e "s/DEFAULT_NAME='//" -e "s/'\$//")
 DEFAULT_EMAIL=$(grep '^DEFAULT_EMAIL=' "$SCRIPT" | sed -e "s/DEFAULT_EMAIL='//" -e "s/'\$//")
@@ -35,7 +40,7 @@ init_repo() {
 }
 
 test_script() {
-  TEST_INDEX=$(( TEST_INDEX + 1 ))
+  CURRENT_TEST_INDEX=$(( CURRENT_TEST_INDEX + 1 ))
 
   expected_name="${DEFAULT_NAME}"
   expected_email="${DEFAULT_EMAIL}"
@@ -148,12 +153,15 @@ test_script() {
     errors=$(( errors + 1))
   fi
 
-  # feeback
+  # feedback
   if [[ "$errors" -eq 0 ]]; then
-    printf 'Test %s passed.\n\n' "$TEST_INDEX"
+    TESTS_PASSED=$(( TESTS_PASSED + 1 ))
+    printf 'Test %s passed.\n\n' "$CURRENT_TEST_INDEX"
   else
-    printf 'Test %s failed with %s errors.\n' "$TEST_INDEX" "$errors"
+    TESTS_FAILED=$(( TESTS_FAILED + 1 ))
+    printf 'Test %s failed with %s errors.\n' "$CURRENT_TEST_INDEX" "$errors"
   fi
+  TOTAL_ERRORS=$(( TOTAL_ERRORS + errors ))
 }
 
 cleanup() {
@@ -176,6 +184,7 @@ main() {
   test_script --keep-date --name 'Test 9' --email 'test9@example.com'
   test_script --keep-user
   test_script --keep-user --date '2020-01-01 00:10:10 +0000'
+  printf 'Summary:\n%s tests passed\n%s tests failed\n%s total errors\n' "$TESTS_PASSED" "$TESTS_FAILED" "$TOTAL_ERRORS"
   cleanup
 }
 
