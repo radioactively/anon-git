@@ -1,21 +1,4 @@
 #!/usr/bin/env bash
-# anonymize-git-commit.sh
-#
-# Anonymizes author/committer name/email and sets both dates to a chosen value
-# for a single specified commit (defaults to HEAD).
-#
-# Usage:
-#   ./anonymize-git-commit.sh [OPTIONS] [commit]
-#
-# Options:
-#   -h, --help              Show this help message and exit
-#   --date DATE             Date string (e.g. "2024-06-15 14:30:00 +0200")
-#   --name "Full Name"      Author/committer name
-#   --user email@domain.com Author/committer email
-#
-# Arguments:
-#   commit                  Commit to anonymize (hash, HEAD~n, branch name, etc.)
-#                           If omitted, defaults to HEAD
 
 set -euo pipefail
 
@@ -27,24 +10,24 @@ Usage:
   ./anonymize-git-commit.sh [OPTIONS] [commit]
 
 Options:
-  -h, --help              Show this help message and exit
-  --date DATE             Date to use (example: "2025-03-10 13:37:00 +0000")
-  --name "Full Name"      Name to use for author & committer
-  --user email@domain.com Email to use for author & committer
+  -h, --help                    Show this help message and exit
+  --date      ISO Date          Date to use (example: "2025-03-10 13:37:00 +0000")
+  --name      "Full Name"       Name to use for author & committer
+  --email     email@domain.com  Email to use for author & committer
 
 Arguments:
   commit                  Commit to anonymize (can be: hash, HEAD~3, branch, tag, ...)
                           If omitted, defaults to HEAD
 
 Priority (highest to lowest):
-  1. Command-line flags (--date, --name, --user)
+  1. Command-line flags (--date, --name, --email)
   2. Environment variables (GIT_ANON_DATE, GIT_ANON_USERNAME, GIT_ANON_USEREMAIL)
   3. Hardcoded defaults
 
 Examples:
   ./anonymize-git-commit.sh
   ./anonymize-git-commit.sh HEAD~2
-  ./anonymize-git-commit.sh --date "2024-01-01 00:00:00 +0000" --name "Jane Doe" --user "jane@anon.dev" abc1234
+  ./anonymize-git-commit.sh --date "2024-01-01 00:00:00 +0000" --name "Jane Doe" --email "jane@anon.dev" 8ddf55
 EOF
     exit 0
 }
@@ -79,7 +62,7 @@ while [[ $# -gt 0 ]]; do
             NAME_ARG="$2"
             shift 2
             ;;
-        --user)
+        --email)
             EMAIL_ARG="$2"
             shift 2
             ;;
@@ -152,7 +135,7 @@ git filter-repo \
             commit.author_date = commit.committer_date = 1225481742
             commit.author_offset = commit.committer_offset = 0
   ' \
-  --refs "${TARGET_COMMIT}"
+  --refs "${TARGET_COMMIT}" >&2
 
 # Refresh index if we rewrote HEAD
 if [ "${TARGET_COMMIT_HASH}" = "$(git rev-parse HEAD)" ]; then

@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# anonymize-git-history.sh
-#
-# Anonymizes ALL commits in the current branch history:
-#   • same name/email for author & committer
-#   • same date for author & committer date on every commit
-#
-# WARNING: Rewrites ALL commit hashes; force-push required afterwards.
 
 set -euo pipefail
 
@@ -17,10 +10,10 @@ Usage:
   ./anonymize-git-history.sh [OPTIONS]
 
 Options:
-  -h, --help               Show this help message and exit
-  --date DATE              Date to use for ALL commits (example: "2025-03-10 13:37:00 +0000")
-  --name "Full Name"       Name to use for author & committer
-  --email email@domain.com Email to use for author & committer
+  -h, --help                    Show this help message and exit
+  --date      ISO Date          Date to use for ALL commits (example: "2025-03-10 13:37:00 +0000")
+  --name      "Full Name"       Name to use for author & committer
+  --email     email@domain.com  Email to use for author & committer
 
 Priority (highest to lowest):
   1. Command-line flags (--date, --name, --email)
