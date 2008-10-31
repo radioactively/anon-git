@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 
+# ──────────────────────────────────────────────
+# DEFAULTS
+
+DEFAULT_DATE='2008-10-31 18:15:42 +0000'
+DEFAULT_NAME='Satoshi Nakamoto'
+DEFAULT_EMAIL='satoshi@gmx.com'
+
+# ──────────────────────────────────────────────────────────────────────
+# HELP
 show_help() {
-    cat << 'EOF'
+    cat << EOF
 Anonymize a single git commit's author, committer, and dates.
 
 Usage:
@@ -30,17 +39,8 @@ EOF
     exit 0
 }
 
-# ──────────────────────────────────────────────
-#   DEFAULT VALUES
-# ──────────────────────────────────────────────
-
-DEFAULT_DATE='2008-10-31 18:15:42 +0000'
-DEFAULT_NAME='Satoshi Nakamoto'
-DEFAULT_EMAIL='satoshi@gmx.com'
-
-# ──────────────────────────────────────────────
-#   PARSE ARGUMENTS
-# ──────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────
+# PARSE ARGUMENTS
 
 DATE_ARG=""
 NAME_ARG=""
@@ -76,21 +76,22 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ──────────────────────────────────────────────
-#   Resolve final values (flags > env > default)
-# ──────────────────────────────────────────────
-
-ANON_DATE="${DATE_ARG:-${GIT_ANON_DATE:-${DEFAULT_DATE}}}"
-ANON_NAME="${NAME_ARG:-${GIT_ANON_USERNAME:-${DEFAULT_NAME}}}"
-ANON_EMAIL="${EMAIL_ARG:-${GIT_ANON_USEREMAIL:-${DEFAULT_EMAIL}}}"
-
-# ──────────────────────────────────────────────
-#   VALIDATION
-# ──────────────────────────────────────────────
+# VALIDATE ARGS
 
 if ! git rev-parse --quiet --verify "${TARGET_COMMIT}^{commit}" >/dev/null 2>&1; then
     printf 'Error: Commit "%s" does not exist or is not a commit object.\n' "${TARGET_COMMIT}" >&2
     exit 1
 fi
+
+# ──────────────────────────────────────────────
+# RESOLVE ARGS
+
+ANON_DATE="${DATE_ARG:-${GIT_ANON_DATE:-${DEFAULT_DATE}}}"
+ANON_NAME="${NAME_ARG:-${GIT_ANON_USERNAME:-${DEFAULT_NAME}}}"
+ANON_EMAIL="${EMAIL_ARG:-${GIT_ANON_USEREMAIL:-${DEFAULT_EMAIL}}}"
+
+# ──────────────────────────────────────────────────────────────────────
+# CONFIRM
 
 printf 'Anonymizing commit: %s\n' "$(git rev-parse --short "${TARGET_COMMIT}")" >&2
 printf '  ->  %s <%s>\n' "${ANON_NAME}" "${ANON_EMAIL}" >&2
@@ -98,20 +99,20 @@ printf '  date = %s\n\n' "${ANON_DATE}" >&2
 
 # Safety: avoid recursion
 [[ -n "${INSIDE_GIT_HOOK_REWRITING:-}" ]] && exit 0
-
-export FILTER_BRANCH_SQUELCH_WARNING=1
 export INSIDE_GIT_HOOK_REWRITING=1
 
-# Export values for python callback
-export ANON_DATE ANON_NAME ANON_EMAIL
-export TARGET_COMMIT_HASH="$(git rev-parse "${TARGET_COMMIT}")"
+# ──────────────────────────────────────────────────────────────────────
+# REWRITE LOGIC
+
+# Export values for python callback and run it
+export ANON_DATE ANON_NAME ANON_EMAIL TARGET_COMMIT
 
 git filter-repo --force --commit-callback '
     from os import environ
     from datetime import datetime
 
     env = environ
-    target = env["TARGET_COMMIT_HASH"]
+    target = env["TARGET_COMMIT"]
 
     if commit.original_id == target.encode("utf-8"):
         name  = env["ANON_NAME"].encode("utf-8")
@@ -138,7 +139,7 @@ git filter-repo --force --commit-callback '
   --refs HEAD >&2
 
 # Refresh index if we rewrote HEAD
-if [ "${TARGET_COMMIT_HASH}" = "$(git rev-parse HEAD)" ]; then
+if [ "${TARGET_COMMIT}" = "$(git rev-parse HEAD)" ]; then
     git reset --quiet --soft HEAD@{1} 2>/dev/null || true
     git reset --quiet HEAD
 fi
