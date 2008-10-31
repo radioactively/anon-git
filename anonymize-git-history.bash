@@ -118,25 +118,33 @@ git filter-repo --force --commit-callback '
     import os
     from datetime import datetime
 
-    name  = os.environ["ANON_NAME"].encode()
-    email = os.environ["ANON_EMAIL"].encode()
+    name  = os.environ["ANON_NAME"].encode("utf-8")
+    email = os.environ["ANON_EMAIL"].encode("utf-8")
+
+    commit.author_name = commit.committer_name = name
+    commit.author_email = commit.committer_email  = email
+
     date_str = os.environ["ANON_DATE"]
-
-    commit.author_name      = name
-    commit.author_email     = email
-    commit.committer_name   = name
-    commit.committer_email  = email
-
     try:
         dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S %z")
         ts = int(dt.timestamp())
         offset_min = int(dt.utcoffset().total_seconds() / 60) if dt.utcoffset() else 0
-    except Exception:
-        ts = 1225481742
-        offset_min = 0
 
-    commit.author_date = commit.committer_date = ts
-    commit.author_offset = commit.committer_offset = offset_min
+        # Format offset as b"+0000" or b"-0700"
+        offset_hours = abs(offset_min) // 60
+        offset_mins = abs(offset_min) % 60
+        sign = "+" if offset_min >= 0 else "-"
+        offset_bytes = ("%s%02d%02d" % (sign, offset_hours, offset_mins)).encode("utf-8")
+
+        # Full date as bytes: b"timestamp offset"
+        date_bytes = b"%d %s" % (ts, offset_bytes)
+
+    except Exception:
+        # Fallback bytes
+        date_bytes = b"1225481742 +0000"
+
+    commit.author_date = date_bytes
+    commit.committer_date = date_bytes
 '
 
 printf '\nHistory rewritten.\n\n' >&2
