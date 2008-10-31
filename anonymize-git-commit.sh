@@ -113,28 +113,29 @@ git filter-repo --force --commit-callback '
     env = environ
     target = env["TARGET_COMMIT_HASH"]
 
-    name  = env["ANON_NAME"].encode("utf-8")
-    email = env["ANON_EMAIL"].encode("utf-8")
-    date_str = env["ANON_DATE"]
+    if commit.original_id == target.encode("utf-8"):
+        name  = env["ANON_NAME"].encode("utf-8")
+        email = env["ANON_EMAIL"].encode("utf-8")
+        date_str = env["ANON_DATE"]
 
-    commit.author_name = commit.committer_name   = name
-    commit.author_email = commit.committer_email  = email
+        commit.author_name = commit.committer_name  = name
+        commit.author_email = commit.committer_email = email
 
-    # Convert date string to date object, then to bytes
-    dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S %z")
-    ts = int(dt.timestamp())
-    offset_min = int(dt.utcoffset().total_seconds() / 60) if dt.utcoffset() else 0
-    offset_hours = abs(offset_min) // 60
-    offset_mins = abs(offset_min) % 60
-    sign = "+" if offset_min >= 0 else "-"
-    offset_bytes = ("%s%02d%02d" % (sign, offset_hours, offset_mins)).encode("utf-8")
-    date = b"%d %s" % (ts, offset_bytes)
+        # Convert date string to date object, then to bytes
+        dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S %z")
+        ts = int(dt.timestamp())
+        offset_min = int(dt.utcoffset().total_seconds() / 60) if dt.utcoffset() else 0
+        offset_hours = abs(offset_min) // 60
+        offset_mins = abs(offset_min) % 60
+        sign = "+" if offset_min >= 0 else "-"
+        offset_bytes = ("%s%02d%02d" % (sign, offset_hours, offset_mins)).encode("utf-8")
+        date = b"%d %s" % (ts, offset_bytes)
 
-    commit.author_name = commit.committer_name = name
-    commit.author_email = commit.committer_email = email
-    commit.author_date = commit.committer_date = date
+        commit.author_name = commit.committer_name = name
+        commit.author_email = commit.committer_email = email
+        commit.author_date = commit.committer_date = date
   ' \
-  --refs "${TARGET_COMMIT}" >&2
+  --refs HEAD >&2
 
 # Refresh index if we rewrote HEAD
 if [ "${TARGET_COMMIT_HASH}" = "$(git rev-parse HEAD)" ]; then
