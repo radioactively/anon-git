@@ -3,9 +3,9 @@
 # ──────────────────────────────────────────────────────────────────────
 # DEFAULTS
 
-DEFAULT_DATE='2008-10-31 18:15:42 +0000'
-DEFAULT_NAME='Satoshi Nakamoto'
-DEFAULT_EMAIL='satoshi@gmx.com'
+DEFAULT_DATE='2008-10-31 00:00:00 +0000'
+DEFAULT_NAME='Anon'
+DEFAULT_EMAIL='anon@localhost'
 DEFAULT_KEEPUSER='0'
 DEFAULT_KEEPDATE='0'
 
