@@ -12,7 +12,7 @@ DEFAULT_KEEPYEAR='0'
 DEFAULT_KEEPMONTH='0'
 DEFAULT_KEEPDAY='0'
 DEFAULT_ENTIREHISTORY='0'
-DEFAULT_COMMIT='HEAD'
+DEFAULT_COMMIT=$(git rev-parse HEAD)
 
 # ──────────────────────────────────────────────────────────────────────
 # HELP
@@ -21,7 +21,7 @@ show_help() {
 Anonymizes git commit metadata.
 
 Usage:
-  ./anonymize-git-commit.sh [OPTIONS] [commit]
+  ./anonymize-git-commit.sh [OPTIONS] [commits]
 
 Options:
   -h, --help                      Show this help message and exit
@@ -38,8 +38,9 @@ Options:
   --entire-history                Rewrite entire history and not a single commit
 
 Arguments:
-  commit                  Commit to anonymize (can be: hash, HEAD~3, branch, tag, ...)
+  commit(s)               Commit(s) to anonymize (can be: hash, HEAD~3, branch, tag, ...)
                           If omitted, defaults to HEAD
+                          If more than one, it should be a commit hash.
 
 Priority (highest to lowest):
   1. Command-line flags (--date, --name, --email, --keep-user, --keep-date)
@@ -69,6 +70,7 @@ NOCONFIRM_ARG=""
 NOBACKUP_ARG=""
 ENTIREHISTORY_ARG=""
 COMMIT_ARG=""
+COMMITS_ARG=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -128,7 +130,13 @@ while [[ $# -gt 0 ]]; do
             exit 1
             ;;
         *)
-            COMMIT_ARG="$1"
+            if ! git rev-parse --quiet --verify "${1}^{commit}" >/dev/null 2>&1; then
+                printf 'Error: Commit "%s" does not exist or is not a commit object.\n' "${1}" >&2
+                exit 1
+            fi
+            ref=$(git rev-parse "$1")
+            COMMITS_ARG=("${COMMITS_ARG[@]}" "$ref")
+            COMMIT_ARG="${COMMITS_ARG[*]}"
             shift
             ;;
     esac
@@ -137,16 +145,9 @@ done
 # ──────────────────────────────────────────────
 # VALIDATE ARGS
 
-# validate commit
-if [[ -n "$COMMIT_ARG" ]]; then
-    if ! git rev-parse --quiet --verify "${COMMIT_ARG}^{commit}" >/dev/null 2>&1; then
-        printf 'Error: Commit "%s" does not exist or is not a commit object.\n' "${COMMIT_ARG}" >&2
-        exit 1
-    fi
-fi
+flag_errors=0
 
 # validate conflicting flags
-flag_conflicts=0
 check_incompatible() {
     local flag1="$1"
     local flag2="$3"
@@ -154,7 +155,7 @@ check_incompatible() {
     local value2="$4"
     if [[ -n "$value1" && -n "$value2" ]]; then
         printf 'Error: flags %s and %s cannot be used together\n' "$flag1" "$flag2" >&2
-        flag_conflicts=1
+        flag_errors=1
     fi
 }
 
@@ -172,7 +173,7 @@ check_incompatible --keep-year  "$KEEPYEAR_ARG"  --keep-day       "$KEEPDAY_ARG"
 check_incompatible --keep-month "$KEEPMONTH_ARG" --keep-day       "$KEEPDAY_ARG"
 check_incompatible --commit     "$COMMIT_ARG"    --entire-history "$ENTIREHISTORY_ARG"
 
-[[ "$flag_conflicts" -ne 0 ]] && exit 1
+[[ "$flag_errors" -ne 0 ]] && exit 1
 
 # ──────────────────────────────────────────────
 # RESOLVE ARGS
@@ -188,14 +189,12 @@ ANON_GIT_KEEPDAY="${KEEPDAY_ARG:-${ANON_GIT_KEEPDAY:-${DEFAULT_KEEPDAY}}}"
 ANON_GIT_ENTIREHISTORY="${ENTIREHISTORY_ARG:-${ANON_GIT_ENTIREHISTORY:-${DEFAULT_ENTIREHISTORY}}}"
 ANON_GIT_COMMIT="${COMMIT_ARG:-${DEFAULT_COMMIT}}"
 
-TARGET_COMMIT=$(git rev-parse "$ANON_GIT_COMMIT")
-
 # ──────────────────────────────────────────────────────────────────────
 # CONFIRMATION
 
-if [[ -n "$COMMIT_ARG" ]]; then
-    short_commit=$(git rev-parse --short "$TARGET_COMMIT")
-    printf 'Anonymizing commit: %s\n' "$short_commit"
+if [[ -z "$ENTIREHISTORY_ARG" ]]; then
+    short_commit=$(echo "$ANON_GIT_COMMIT" | xargs -n 1 git rev-parse --short | tr '\n' ' ')
+    printf 'Anonymizing commit(s): %s\n' "$short_commit"
 fi
 if [[ -n "$ENTIREHISTORY_ARG" ]]; then
     printf 'Anonymizing entire history!\n'
@@ -260,10 +259,15 @@ export TZ=UTC
 git filter-repo --force --commit-callback "
     from datetime import datetime, timedelta, timezone
 
-    target = '${TARGET_COMMIT}'
     name  = '${ANON_GIT_NAME}'
     email = '${ANON_GIT_EMAIL}'
     date = '${ANON_GIT_DATE}'
+    target_commits = [c.encode() for c in '${ANON_GIT_COMMIT}'.split()]
+
+    #f = open('/dev/stderr', 'w')
+    #print(commit.original_id in target_commits, file=f)
+    #print(target_commits, file=f)
+    #f.close()
 
     keepuser = ${ANON_GIT_KEEPUSER}
     keepdate = ${ANON_GIT_KEEPDATE}
@@ -271,7 +275,7 @@ git filter-repo --force --commit-callback "
     keepmonth = ${ANON_GIT_KEEPMONTH}
     keepday = ${ANON_GIT_KEEPDAY}
 
-    if ${ANON_GIT_ENTIREHISTORY} or commit.original_id == target.encode():
+    if ${ANON_GIT_ENTIREHISTORY} or commit.original_id in target_commits:
         if keepuser != 1:
             commit.author_name = commit.committer_name = name.encode()
             commit.author_email = commit.committer_email = email.encode()
@@ -330,4 +334,4 @@ git filter-repo --force --commit-callback "
             commit.author_date = commit.committer_date = date_as_bytes
 " --refs HEAD >&2
 
-printf 'Done. Commit %s has been rewritten.\n' "$(git rev-parse --short "${TARGET_COMMIT}")"
+printf 'Done. History has been rewritten.\n'
