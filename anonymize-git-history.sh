@@ -49,6 +49,7 @@ EMAIL_ARG=""
 KEEPUSER_ARG=""
 KEEPDATE_ARG=""
 NOCONFIRM_ARG=""
+NOBACKUP_ARG=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -77,6 +78,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-confirm)
             NOCONFIRM_ARG='1'
+            shift
+            ;;
+        --no-backup)
+            NOBACKUP_ARG='1'
             shift
             ;;
         -*)
@@ -125,12 +130,12 @@ ANON_GIT_KEEPDATE="${KEEPDATE_ARG:-${ANON_GIT_KEEPDATE:-${DEFAULT_KEEPDATE}}}"
 # ──────────────────────────────────────────────────────────────────────
 # CONFIRM
 
-printf '\n%s\n\n' "WARNING: This will REWRITE ALL commit hashes!" >&2
-printf '         You will need to force-push afterwards.\n\n' >&2
-printf 'Values that will be used:\n' >&2
-[[ $ANON_GIT_KEEPUSER == '0' ]] && printf '  Identity : %s <%s>\n' "${ANON_GIT_NAME}" "${ANON_GIT_EMAIL}" >&2
-[[ $ANON_GIT_KEEPDATE == '0' ]] && printf '  Date     : %s  (same timestamp on EVERY commit)\n' "${ANON_GIT_DATE}" >&2
-printf '\n' >&2
+printf '\n%s\n\n' "WARNING: This will REWRITE ALL commit hashes!"
+printf '         You will need to force-push afterwards.\n\n'
+printf 'Values that will be used:\n'
+[[ $ANON_GIT_KEEPUSER == '0' ]] && printf '  Identity : %s <%s>\n' "${ANON_GIT_NAME}" "${ANON_GIT_EMAIL}"
+[[ $ANON_GIT_KEEPDATE == '0' ]] && printf '  Date     : %s  (same timestamp on EVERY commit)\n' "${ANON_GIT_DATE}"
+printf '\n'
 
 if [[ "$NOCONFIRM_ARG" != '1' ]]; then
     read -p "Continue? (y/N) " -n 1 -r
@@ -139,13 +144,17 @@ if [[ "$NOCONFIRM_ARG" != '1' ]]; then
 fi
 
 # ──────────────────────────────────────────────────────────────────────
-# REWRITE LOGIC
+# BACKUP BRANCH
 
-# Create backup branch
-backup_branch="backup-anon-git-$(date +%Y%m%d-%H%M%S)"
-git branch "${backup_branch}"
-printf 'Created backup branch: %s\n\n' "${backup_branch}" >&2
-printf 'Rewriting all commits...\n\n' >&2
+if [[ "$NOBACKUP_ARG" != "1" ]]; then
+    backup_branch="backup-anon-git-$(date +%Y%m%d-%H%M%S)"
+    git branch "${backup_branch}"
+    printf 'Created backup branch: %s\n\n' "${backup_branch}"
+    printf 'Rewriting commit...\n\n'
+fi
+
+# ──────────────────────────────────────────────────────────────────────
+# REWRITE LOGIC
 
 # Export values for python callback and run it
 export ANON_GIT_DATE ANON_GIT_NAME ANON_GIT_EMAIL ANON_GIT_KEEPUSER ANON_GIT_KEEPDATE
@@ -167,14 +176,20 @@ git filter-repo --force --commit-callback '
     if keepdate == "0":
         date_str = env["ANON_GIT_DATE"]
 
-        # convert date string to date object, then to bytes
+        # date object
         dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S %z")
+
+        # timestamp integer without tz
         ts = int(dt.timestamp())
-        offset_min = int(dt.utcoffset().total_seconds() / 60) if dt.utcoffset() else 0
-        offset_hours = abs(offset_min) // 60
-        offset_mins = abs(offset_min) % 60
-        sign = "+" if offset_min >= 0 else "-"
+
+        # timezone as bytes
+        offset_seconds = int(dt.utcoffset().total_seconds())
+        offset_hours = offset_seconds // 60
+        offset_mins = offset_seconds % 60
+        sign = "+" if offset_seconds >= 0 else "-"
         offset_bytes = ("%s%02d%02d" % (sign, offset_hours, offset_mins)).encode("utf-8")
+
+        # date formartted
         date = b"%d %s" % (ts, offset_bytes)
 
         commit.author_date = commit.committer_date = date
@@ -182,7 +197,7 @@ git filter-repo --force --commit-callback '
 
 printf '\nHistory rewritten.\n\n' >&2
 printf 'Next steps:\n' >&2
-printf '  1. Verify:     git log --pretty=fuller --date=iso\n' >&2
-printf '  2. Force push: git push --force-with-lease --all\n' >&2
-printf '                 git push --force-with-lease --tags\n' >&2
-printf '  3. (Later)     git branch -D %s\n\n' "${backup_branch}" >&2
+printf '  1. Verify:     git log --pretty=fuller --date=iso\n'
+printf '  2. Force push: git push --force-with-lease --all\n'
+printf '                 git push --force-with-lease --tags\n'
+printf '  3. (Later)     git branch -D %s\n\n' "${backup_branch}"

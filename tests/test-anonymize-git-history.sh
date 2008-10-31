@@ -48,7 +48,7 @@ test_script() {
   keep_user="${DEFAULT_KEEPUSER}"
   keep_date="${DEFAULT_KEEPDATE}"
 
-  args=(--no-confirm)
+  args=(--no-confirm --no-backup)
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --date)

@@ -26,6 +26,7 @@ Options:
   --keep-user                     Do not change user name or author
   --keep-date                     Do not change date
   --no-confirm                    Do not prompt for confirmation
+  --no-backup                     Do not create backup branch
 
 Arguments:
   commit                  Commit to anonymize (can be: hash, HEAD~3, branch, tag, ...)
@@ -53,6 +54,7 @@ EMAIL_ARG=""
 KEEPUSER_ARG=""
 KEEPDATE_ARG=""
 NOCONFIRM_ARG=""
+NOBACKUP_ARG=""
 TARGET_COMMIT="HEAD"
 
 while [[ $# -gt 0 ]]; do
@@ -82,6 +84,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-confirm)
             NOCONFIRM_ARG='1'
+            shift
+            ;;
+        --no-backup)
+            NOBACKUP_ARG='1'
             shift
             ;;
         -*)
@@ -137,10 +143,10 @@ TARGET_COMMIT=$(git rev-parse "$TARGET_COMMIT")
 # CONFIRM
 
 short_commit=$(git rev-parse --short "$TARGET_COMMIT")
-printf 'Anonymizing commit: %s\n' "$short_commit" >&2
-printf 'Values that will be used:\n' >&2
-[[ $ANON_GIT_KEEPUSER == '0' ]] && printf '  Identity : %s <%s>\n' "${ANON_GIT_NAME}" "${ANON_GIT_EMAIL}" >&2
-[[ $ANON_GIT_KEEPDATE == '0' ]] && printf '  Date     : %s\n' "${ANON_GIT_DATE}" >&2
+printf 'Anonymizing commit: %s\n' "$short_commit"
+printf 'Values that will be used:\n'
+[[ $ANON_GIT_KEEPUSER == '0' ]] && printf '  Identity : %s <%s>\n' "${ANON_GIT_NAME}" "${ANON_GIT_EMAIL}"
+[[ $ANON_GIT_KEEPDATE == '0' ]] && printf '  Date     : %s\n' "${ANON_GIT_DATE}"
 printf '\n' >&2
 
 if [[ "$NOCONFIRM_ARG" != '1' ]]; then
@@ -150,13 +156,17 @@ if [[ "$NOCONFIRM_ARG" != '1' ]]; then
 fi
 
 # ──────────────────────────────────────────────────────────────────────
-# REWRITE LOGIC
+# BACKUP BRANCH
 
-## Create backup branch
-backup_branch="backup-anon-git-$(date +%Y%m%d-%H%M%S)"
-git branch "${backup_branch}"
-printf 'Created backup branch: %s\n\n' "${backup_branch}" >&2
-printf 'Rewriting commit...\n\n' >&2
+if [[ "$NOBACKUP_ARG" != "1" ]]; then
+    backup_branch="backup-anon-git-$(date +%Y%m%d-%H%M%S)"
+    git branch "${backup_branch}"
+    printf 'Created backup branch: %s\n\n' "${backup_branch}"
+    printf 'Rewriting commit...\n\n'
+fi
+
+# ──────────────────────────────────────────────────────────────────────
+# REWRITE LOGIC
 
 # Export values for python callback and run it
 export TARGET_COMMIT ANON_GIT_DATE ANON_GIT_NAME ANON_GIT_EMAIL ANON_GIT_KEEPUSER ANON_GIT_KEEPDATE
@@ -180,14 +190,20 @@ git filter-repo --force --commit-callback '
         if keepdate == "0":
             date_str = env["ANON_GIT_DATE"]
 
-            # convert date string to date object, then to bytes
+            # date object
             dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S %z")
+
+            # timestamp integer without tz
             ts = int(dt.timestamp())
-            offset_min = int(dt.utcoffset().total_seconds() / 60) if dt.utcoffset() else 0
-            offset_hours = abs(offset_min) // 60
-            offset_mins = abs(offset_min) % 60
-            sign = "+" if offset_min >= 0 else "-"
+
+            # timezone as bytes
+            offset_seconds = int(dt.utcoffset().total_seconds())
+            offset_hours = offset_seconds // 60
+            offset_mins = offset_seconds % 60
+            sign = "+" if offset_seconds >= 0 else "-"
             offset_bytes = ("%s%02d%02d" % (sign, offset_hours, offset_mins)).encode("utf-8")
+
+            # date formartted
             date = b"%d %s" % (ts, offset_bytes)
 
             commit.author_date = commit.committer_date = date
@@ -199,4 +215,4 @@ if [ "${TARGET_COMMIT}" = "$(git rev-parse HEAD)" ]; then
     git reset --quiet HEAD
 fi
 
-printf 'Done. Commit %s has been rewritten.\n' "$(git rev-parse --short "${TARGET_COMMIT}")" >&2
+printf 'Done. Commit %s has been rewritten.\n' "$(git rev-parse --short "${TARGET_COMMIT}")"

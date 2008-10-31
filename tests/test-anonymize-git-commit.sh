@@ -48,7 +48,7 @@ test_script() {
   keep_user="${DEFAULT_KEEPUSER}"
   keep_date="${DEFAULT_KEEPDATE}"
 
-  args=(--no-confirm)
+  args=(--no-confirm --no-backup)
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --date)
@@ -97,7 +97,7 @@ test_script() {
   # Run script
   cmd="./${SCRIPT_NAME} ${args[*]} HEAD~${random_index}"
   printf 'Running %s\n' "$cmd"
-  ./${SCRIPT_NAME} "${args[@]}" "$commit_hash" >/dev/null 2>&1
+  ./${SCRIPT_NAME} "${args[@]}" "HEAD~${random_index}" >/dev/null 2>&1
 
   # store new logs (except modified commit)
   new_commit_hash=$(git rev-parse "HEAD~${random_index}")
@@ -165,7 +165,7 @@ test_script() {
 }
 
 cleanup() {
-  cd - || exit 0
+  cd - >/dev/null || exit 0
   rm -rf "$TMP_DIR"
 }
 

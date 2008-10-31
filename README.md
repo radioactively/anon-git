@@ -81,13 +81,14 @@ Rewrite **one commit** (author, committer, dates).
 **Options**
 
 ```
--h, --help                 Show help message and exit
---date        "ISO date"   Set author & committer date (example: "2025-03-10 13:37:00 +0000")
---name        "Full name"  Set author & committer name
---email       "Email"      Set author & committer email
---keep-user                Do not change name/email
---keep-date                Do not change dates
---no-confir
+-h, --help                       Show help message and exit
+--date        "ISO date"         Set author & committer date (example: "2025-03-10 13:37:00 +0000")
+--name        "Full name"        Set author & committer name
+--email       "Email address"    Set author & committer email
+--keep-user                      Do not change name/email
+--keep-date                      Do not change dates
+--no-confirm                     Do not prompt for confirmation
+--no-backup                      Do not create backup branch
 ```
 
 **Priority order** (highest to lowest):
@@ -235,8 +236,10 @@ This gives seamless "anonymous-by-default" committing while still allowing manua
 - [x] Add option `--name` to set user name
 - [x] Add option `--keep-user` to keep user name & email
 - [x] Add option `--keep-date` to keep timestamps
-- [ ] Add option `--preserve-year` to keep year in commit timestamp
-- [ ] Add option `--preserve-month` to keep month in commit timestamp
-- [ ] Add option `--preserve-day` to keep day in commit timestamp
+- [ ] Add option `--keep-year` to keep year in commit timestamp
+- [ ] Add option `--keep-month` to keep month in commit timestamp
+- [ ] Add option `--keep-day` to keep day in commit timestamp
+- [x] Add option `--no-confirm` to skip confirmation prompt
+- [x] Add option `--no-backup` to skip backup creation
 
-**Note**: options `--keep-user`, `--kep-date`, `--preserve-year`, `--preserve-month` and `--preserve-day` may be useful for contribution statistics but provide less privacy.
+**Note**: the `--keep-*` flags may be useful for contribution statistics but provide less privacy.
