@@ -43,7 +43,7 @@ test_script() {
   keep_user="${DEFAULT_KEEPUSER}"
   keep_date="${DEFAULT_KEEPDATE}"
 
-  args=()
+  args=(--no-confirm)
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --date)
@@ -85,8 +85,8 @@ test_script() {
 
   # run script
   cmd="./${SCRIPT_NAME} ${args[*]}"
-  printf 'Running %s...\n' "$cmd"
-  echo y | ./${SCRIPT_NAME} "${args[@]}" >/dev/null 2>&1
+  printf 'Running %s\n' "$cmd"
+  ./${SCRIPT_NAME} "${args[@]}" >/dev/null 2>&1
 
   # store new logs for comparison
   NEWLOG=$(git log --pretty=fuller --date=iso)
@@ -103,29 +103,29 @@ test_script() {
   errors=0
 
   # author & commiter check
-  if [[ "$keep_user" != '1' && "$author_matches" -ne "$COMMIT_COUNT" ]]; then
+  if [[ "$keep_user" -ne 1 && "$author_matches" -ne "$COMMIT_COUNT" ]]; then
     printf 'Error: author name & email not overwrriten\n'
     errors=$(( errors + 1 ))
   fi
-  if [[ "$keep_user" != 1 && "$commiter_matches" -ne "$COMMIT_COUNT" ]]; then
+  if [[ "$keep_user" -ne 1 && "$commiter_matches" -ne "$COMMIT_COUNT" ]]; then
     printf 'Error: commiter name & email not overwrriten\n'
     errors=$(( errors + 1 ))
   fi
-  if [[ "$keep_user" == '1' && "$OLDLOG_AUTHOR" != "$NEWLOG_AUTHOR" ]]; then
+  if [[ "$keep_user" -eq 1 && "$OLDLOG_AUTHOR" != "$NEWLOG_AUTHOR" ]]; then
     printf 'Error: flag --keep-user failed\n'
     errors=$(( errors + 1 ))
   fi
 
   # date check
-  if [[ "$keep_date" != 1 && "$author_date_matches" -ne "$COMMIT_COUNT" ]]; then
+  if [[ "$keep_date" -ne 1 && "$author_date_matches" -ne "$COMMIT_COUNT" ]]; then
     printf 'Error: author date not overwrriten\n'
     errors=$(( errors + 1 ))
   fi
-  if [[ "$keep_date" != 1 && "$commiter_date_matches" -ne "$COMMIT_COUNT" ]]; then
+  if [[ "$keep_date" -ne 1 && "$commiter_date_matches" -ne "$COMMIT_COUNT" ]]; then
     printf 'Error: commiter date not overwrriten\n'
     errors=$(( errors + 1 ))
   fi
-  if [[ "$keep_date" == '1' && "$OLDLOG_DATE" != "$NEWLOG_DATE" ]]; then
+  if [[ "$keep_date" -eq 1 && "$OLDLOG_DATE" != "$NEWLOG_DATE" ]]; then
     printf 'Error: flag --keep-date failed\n'
     errors=$(( errors +1 ))
   fi

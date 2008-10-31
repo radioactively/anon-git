@@ -7,88 +7,176 @@ SCRIPT=${SCRIPT_DIR}/${SCRIPT_NAME}
 
 # Create temp dir
 TMP_DIR=$(mktemp -d /tmp/anon_git_test_hist.XXXXXX)
-cp "$SCRIPT" "$TMP_DIR"
 cd "$TMP_DIR" || exit 1
+cp "$SCRIPT" .
+chmod +x "./${SCRIPT_NAME}"
 
-# Init git repo
-git init >/dev/null
-git config --local user.name "Test User"
-git config --local user.email "test@example.com"
+# Global variables shared among functions
+COMMIT_COUNT=20
+TEST_INDEX=0
+DEFAULT_DATE=$(grep '^DEFAULT_DATE=' "$SCRIPT" | sed -e "s/DEFAULT_DATE='//" -e "s/'\$//")
+DEFAULT_NAME=$(grep '^DEFAULT_NAME=' "$SCRIPT" | sed -e "s/DEFAULT_NAME='//" -e "s/'\$//")
+DEFAULT_EMAIL=$(grep '^DEFAULT_EMAIL=' "$SCRIPT" | sed -e "s/DEFAULT_EMAIL='//" -e "s/'\$//")
+DEFAULT_KEEPUSER=$(grep '^DEFAULT_KEEPUSER=' "$SCRIPT" | sed -e "s/DEFAULT_KEEPUSER='//" -e "s/'\$//")
+DEFAULT_KEEPDATE=$(grep '^DEFAULT_KEEPDATE=' "$SCRIPT" | sed -e "s/DEFAULT_KEEPDATE='//" -e "s/'\$//")
 
-# Make dummy commits
-commit_count=20
-for i in $(seq 1 "$commit_count"); do
-  filename="file_${i}.txt"
-  echo "This is file $i" >"$filename"
-  git add "$filename" >/dev/null
-  git commit -m "Add file $filename" >/dev/null
-done
+# ──────────────────────────────────────────────────────────────────────
 
-# Pick random commit
-random_index=$(( $(od -An -N2 -tu2 </dev/urandom) % (commit_count - 1) ))
-commit_hash=$(git rev-parse "HEAD~${random_index}")
+init_repo() {
+  git init >/dev/null
+  git config --local user.name "Test User"
+  git config --local user.email "test@example.com"
+  for i in $(seq 1 "$COMMIT_COUNT"); do
+    filename="file_${i}.txt"
+    echo "This is file $i" >"$filename"
+    git add "$filename" >/dev/null
+    git commit -m "Add file $filename" >/dev/null
+  done
+}
 
-# store old logs (except commit to be modified)
-commit_format='%H %an <%aE> (%ai) %cn <%cE> (%ci)'
-COMMITS_OLD=$(git log --format="$commit_format" | grep --invert-match "$commit_hash" | sed 's/^[0-9a-f]\+//')
+test_script() {
+  TEST_INDEX=$(( TEST_INDEX + 1 ))
 
-# Run script
-echo y | bash ./${SCRIPT_NAME} "$commit_hash" >/dev/null 2>&1
+  expected_name="${DEFAULT_NAME}"
+  expected_email="${DEFAULT_EMAIL}"
+  expected_date="${DEFAULT_DATE}"
+  keep_user="${DEFAULT_KEEPUSER}"
+  keep_date="${DEFAULT_KEEPDATE}"
 
-# store new logs (except modified commit)
-new_commit_hash=$(git rev-parse "HEAD~${random_index}")
-COMMITS_NEW=$(git log --format="$commit_format" | grep --invert-match "$new_commit_hash" | sed 's/^[0-9a-f]\+//')
+  args=(--no-confirm)
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --date)
+        expected_date="$2"
+        args=("${args[@]}" --date "$2")
+        shift 2
+        ;;
+      --name)
+        expected_name="$2"
+        args=("${args[@]}" --name "$2")
+        shift 2
+        ;;
+      --email)
+        expected_email="$2"
+        args=("${args[@]}" --email "$2")
+        shift 2
+        ;;
+      --keep-user)
+        keep_user='1'
+        args=("${args[@]}" --keep-user)
+        shift
+        ;;
+      --keep-date)
+        keep_date='1'
+        args=("${args[@]}" --keep-date)
+        shift
+        ;;
+      *)
+        printf 'Unexpected argument in test_script\n'
+        exit 1
+        ;;
+    esac
+  done
+  expected_author="${expected_name} <${expected_email}>"
 
-# New commit hash
-new_commit_hash=$(git rev-parse "HEAD~${random_index}")
-COMMIT_INFO=$(git show --pretty=fuller --no-patch --date=iso "$new_commit_hash")
+  # Pick random commit
+  random_index=$(( $(od -An -N2 -tu2 </dev/urandom) % (COMMIT_COUNT - 1) ))
+  commit_hash=$(git rev-parse "HEAD~${random_index}")
 
-# Check results
+  # store old logs (except commit to be modified)
+  commit_format='%H %an <%aE> (%ai) %cn <%cE> (%ci)'
+  OLD_AUTHOR=$(git show --format='%an <%ae> %cn <%ce>' "$commit_hash")
+  OLD_DATE=$(git show --format='%ai %ci' "$commit_hash")
+  OLD_COMMITS=$(git log --format="$commit_format" | grep --invert-match "$commit_hash" | sed 's/^[0-9a-f]\+//')
 
-## expected values
-default_date=$(grep '^DEFAULT_DATE=' "$SCRIPT" | sed -e "s/DEFAULT_DATE='//" -e "s/'\$//")
-default_name=$(grep '^DEFAULT_NAME=' "$SCRIPT" | sed -e "s/DEFAULT_NAME='//" -e "s/'\$//")
-default_email=$(grep '^DEFAULT_EMAIL=' "$SCRIPT" | sed -e "s/DEFAULT_EMAIL='//" -e "s/'\$//")
-expected_author="${default_name} <${default_email}>"
-expected_date="${default_date}"
+  # Run script
+  cmd="./${SCRIPT_NAME} ${args[*]} HEAD~${random_index}"
+  printf 'Running %s\n' "$cmd"
+  ./${SCRIPT_NAME} "${args[@]}" "$commit_hash" >/dev/null 2>&1
 
-## Real values
-author_matches=$(grep --count "^Author:\s\+${expected_author}" <<<"$COMMIT_INFO")
-commiter_matches=$(grep --count "^Commit:\s\+${expected_author}" <<<"$COMMIT_INFO")
-author_date_matches=$(grep --count "^AuthorDate:\s\+${expected_date}" <<<"$COMMIT_INFO")
-commiter_date_matches=$(grep --count "^CommitDate:\s\+${expected_date}" <<< "$COMMIT_INFO")
+  # store new logs (except modified commit)
+  new_commit_hash=$(git rev-parse "HEAD~${random_index}")
 
-## Error feedback if any
-errors=0
-if [[ "$author_matches" -ne 1 ]]; then
-  printf 'Error: author name & email not overwrriten\n'
-  errors=$(( errors + 1 ))
-fi
-if [[ "$commiter_matches" -ne 1 ]]; then
-  printf 'Error: commiter name & email not overwrriten\n'
-  errors=$(( errors + 1 ))
-fi
-if [[ "$author_date_matches" -ne 1 ]]; then
-  printf 'Error: author date not overwrriten\n'
-  errors=$(( errors + 1 ))
-fi
-if [[ "$commiter_date_matches" -ne 1 ]]; then
-  printf 'Error: commiter date not overwrriten\n'
-  errors=$(( errors + 1 ))
-fi
-if [[ "$COMMITS_OLD" != "$COMMITS_NEW" ]]; then
-  printf 'Error: other commits were affected!'
-  errors=$(( errors + 1))
-fi
+  # store new logs for comparison
+  NEW_AUTHOR=$(git show --format='%an <%ae> %cn <%ce>' "$new_commit_hash")
+  NEW_DATE=$(git show --format='%ai %ci' "$new_commit_hash")
+  NEW_COMMITS=$(git log --format="$commit_format" | grep --invert-match "$new_commit_hash" | sed 's/^[0-9a-f]\+//')
+  NEW_COMMIT=$(git show --pretty=fuller --no-patch --date=iso "$new_commit_hash")
 
-## Show results.
-if [[ "$errors" -eq 0 ]]; then
-  printf 'Test passed.\n'
-else
-  printf "Test failed with %s errors.\n" "$errors"
-fi
+  # Check results
 
-# Cleanup
-cd - >/dev/null || exit 0
-rm -rf "$TMP_DIR"
-exit
+  ## Real values
+  author_matches=$(grep --count "^Author:\s\+${expected_author}" <<<"$NEW_COMMIT")
+  commiter_matches=$(grep --count "^Commit:\s\+${expected_author}" <<<"$NEW_COMMIT")
+  author_date_matches=$(grep --count "^AuthorDate:\s\+${expected_date}" <<<"$NEW_COMMIT")
+  commiter_date_matches=$(grep --count "^CommitDate:\s\+${expected_date}" <<< "$NEW_COMMIT")
+
+  # check for erros
+  errors=0
+
+  # author & commiter check
+  if [[ "$keep_user" -ne 1 && "$author_matches" -ne 1 ]]; then
+    printf 'Error: author name & email not overwrriten\n'
+    errors=$(( errors + 1 ))
+  fi
+  if [[ "$keep_user" -ne 1 && "$commiter_matches" -ne 1 ]]; then
+    printf 'Error: commiter name & email not overwrriten\n'
+    errors=$(( errors + 1 ))
+  fi
+  if [[ "$keep_user" -eq 1 && "$NEW_AUTHOR" != "$OLD_AUTHOR" ]]; then
+    printf 'Error: flag --keep-user not respected\n'
+    errors=$(( errors + 1 ))
+  fi
+
+  # date check
+  if [[ "$keep_date" -ne 1 && "$author_date_matches" -ne 1 ]]; then
+    printf 'Error: author date not overwrriten\n'
+    errors=$(( errors + 1 ))
+  fi
+  if [[ "$keep_date" -ne 1 && "$commiter_date_matches" -ne 1 ]]; then
+    printf 'Error: commiter date not overwrriten\n'
+    errors=$(( errors + 1 ))
+  fi
+  if [[ "$keep_date" -eq 1 && "$NEW_DATE" != "$OLD_DATE" ]]; then
+    printf 'Error: flag --keep-date not respected\n'
+    errors=$(( errors + 1 ))
+  fi
+
+  # other commmits check
+  if [[ "$OLD_COMMITS" != "$NEW_COMMITS" ]]; then
+    printf 'Error: other commits were affected!'
+    errors=$(( errors + 1))
+  fi
+
+  # feeback
+  if [[ "$errors" -eq 0 ]]; then
+    printf 'Test %s passed.\n\n' "$TEST_INDEX"
+  else
+    printf 'Test %s failed with %s errors.\n' "$TEST_INDEX" "$errors"
+  fi
+}
+
+cleanup() {
+  cd - >/dev/null || exit 0
+  rm -rf "$TMP_DIR"
+}
+
+main() {
+  init_repo
+  test_script
+  test_script --name 'Test 1'
+  test_script --name 'Test 2' --email 'test2@example.com'
+  test_script --name 'Test 3' --email 'test3@example.com' --date '2020-01-01 00:03:03 +0000'
+  test_script --name 'Test 4' --date '2020-01-01 00:04:04 +0000'
+  test_script --email 'test5@example.com'
+  test_script --email 'test6@example.com' --date '2020-10-31 00:06:06 +0000'
+  test_script --date '2020-01-01 00:07:07 +0000'
+  test_script --keep-date
+  test_script --keep-date --name 'Test 8'
+  test_script --keep-date --name 'Test 9' --email 'test9@example.com'
+  test_script --keep-user
+  test_script --keep-user --date '2020-01-01 00:10:10 +0000'
+  cleanup
+}
+
+main
