@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
 # anonymize-git-commit.sh
 #
-# Anonymizes author/committer name/email and sets both dates to GIT_ANON_DATE
+# Anonymizes author/committer name/email and sets both dates to a chosen value
 # for a single specified commit (defaults to HEAD).
 #
 # Usage:
-#   ./anonymize-last-commit.sh [OPTIONS] [commit]
+#   ./anonymize-git-commit.sh [OPTIONS] [commit]
 #
 # Options:
-#   -h, --help      Show this help message and exit
+#   -h, --help              Show this help message and exit
+#   --date DATE             Date string (e.g. "2024-06-15 14:30:00 +0200")
+#   --name "Full Name"      Author/committer name
+#   --user email@domain.com Author/committer email
 #
 # Arguments:
-#   commit          Commit to anonymize (hash, HEAD~n, branch name, etc.)
-#                   If omitted, defaults to HEAD (most recent commit)
+#   commit                  Commit to anonymize (hash, HEAD~n, branch name, etc.)
+#                           If omitted, defaults to HEAD
 
 set -euo pipefail
 
@@ -21,73 +24,106 @@ show_help() {
 Anonymize a single git commit's author, committer, and dates.
 
 Usage:
-  ./anonymize-last-commit.sh [OPTIONS] [commit]
+  ./anonymize-git-commit.sh [OPTIONS] [commit]
 
 Options:
-  -h, --help      Show this help message and exit
+  -h, --help              Show this help message and exit
+  --date DATE             Date to use (example: "2025-03-10 13:37:00 +0000")
+  --name "Full Name"      Name to use for author & committer
+  --user email@domain.com Email to use for author & committer
 
 Arguments:
-  commit          Commit to anonymize (can be: hash, HEAD~3, branch, tag, ...)
-                  If omitted, defaults to HEAD
+  commit                  Commit to anonymize (can be: hash, HEAD~3, branch, tag, ...)
+                          If omitted, defaults to HEAD
 
-Environment variables (optional):
-  GIT_ANON_DATE           Date to use (default: 2008-10-31 18:15:42 +0000)
-  GIT_ANON_USERNAME       Name to use     (default: Satoshi Nakamoto)
-  GIT_ANON_USEREMAIL      Email to use    (default: satoshi@gmx.com)
+Priority (highest to lowest):
+  1. Command-line flags (--date, --name, --user)
+  2. Environment variables (GIT_ANON_DATE, GIT_ANON_USERNAME, GIT_ANON_USEREMAIL)
+  3. Hardcoded defaults
 
 Examples:
-  ./anonymize-last-commit.sh
-  ./anonymize-last-commit.sh HEAD~2
-  ./anonymize-last-commit.sh abc1234def5678
-  GIT_ANON_DATE="2024-06-15 12:00:00 +0200" ./anonymize-last-commit.sh
-
-Note: Rewriting commits changes their hashes and all descendant commits.
-      You will usually need to force-push afterwards.
+  ./anonymize-git-commit.sh
+  ./anonymize-git-commit.sh HEAD~2
+  ./anonymize-git-commit.sh --date "2024-01-01 00:00:00 +0000" --name "Jane Doe" --user "jane@anon.dev" abc1234
 EOF
     exit 0
 }
 
 # ──────────────────────────────────────────────
-#   CONFIGURATION
+#   DEFAULT VALUES
 # ──────────────────────────────────────────────
 
-DEFAULT_GIT_ANON_DATE='2008-10-31 18:15:42 +0000'
-DEFAULT_GIT_ANON_USERNAME='Satoshi Nakamoto'
-DEFAULT_GIT_ANON_USEREMAIL='satoshi@gmx.com'
-
-GIT_ANON_DATE="${GIT_ANON_DATE:-${DEFAULT_GIT_ANON_DATE}}"
-GIT_ANON_USERNAME="${GIT_ANON_USERNAME:-${DEFAULT_GIT_ANON_USERNAME}}"
-GIT_ANON_USEREMAIL="${GIT_ANON_USEREMAIL:-${DEFAULT_GIT_ANON_USEREMAIL}}"
+DEFAULT_DATE='2008-10-31 18:15:42 +0000'
+DEFAULT_NAME='Satoshi Nakamoto'
+DEFAULT_EMAIL='satoshi@gmx.com'
 
 # ──────────────────────────────────────────────
+#   PARSE ARGUMENTS
+# ──────────────────────────────────────────────
 
-# Handle help flag
-case "${1:-}" in
-    -h|--help)
-        show_help
-        ;;
-esac
+DATE_ARG=""
+NAME_ARG=""
+EMAIL_ARG=""
+TARGET_COMMIT="HEAD"
 
-TARGET_COMMIT="${1:-HEAD}"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            ;;
+        --date)
+            DATE_ARG="$2"
+            shift 2
+            ;;
+        --name)
+            NAME_ARG="$2"
+            shift 2
+            ;;
+        --user)
+            EMAIL_ARG="$2"
+            shift 2
+            ;;
+        -*)
+            printf 'Unknown option: %s\n' "$1" >&2
+            exit 1
+            ;;
+        *)
+            TARGET_COMMIT="$1"
+            shift
+            ;;
+    esac
+done
 
-# Validate that the target commit exists
+# ──────────────────────────────────────────────
+#   Resolve final values (flags > env > default)
+# ──────────────────────────────────────────────
+
+ANON_DATE="${DATE_ARG:-${GIT_ANON_DATE:-${DEFAULT_DATE}}}"
+ANON_NAME="${NAME_ARG:-${GIT_ANON_USERNAME:-${DEFAULT_NAME}}}"
+ANON_EMAIL="${EMAIL_ARG:-${GIT_ANON_USEREMAIL:-${DEFAULT_EMAIL}}}"
+
+# ──────────────────────────────────────────────
+#   VALIDATION
+# ──────────────────────────────────────────────
+
 if ! git rev-parse --quiet --verify "${TARGET_COMMIT}^{commit}" >/dev/null 2>&1; then
     printf 'Error: Commit "%s" does not exist or is not a commit object.\n' "${TARGET_COMMIT}" >&2
     exit 1
 fi
 
 printf 'Anonymizing commit: %s\n' "$(git rev-parse --short "${TARGET_COMMIT}")" >&2
-printf '  →  %s <%s>\n' "${GIT_ANON_USERNAME}" "${GIT_ANON_USEREMAIL}" >&2
-printf '  date = %s\n\n' "${GIT_ANON_DATE}" >&2
+printf '  ->  %s <%s>\n' "${ANON_NAME}" "${ANON_EMAIL}" >&2
+printf '  date = %s\n\n' "${ANON_DATE}" >&2
 
-# Safety: avoid recursion if already inside a rewriting hook
+# Safety: avoid recursion
 [[ -n "${INSIDE_GIT_HOOK_REWRITING:-}" ]] && exit 0
 
 export FILTER_BRANCH_SQUELCH_WARNING=1
 export INSIDE_GIT_HOOK_REWRITING=1
 
-# Export the target commit hash (full) so the callback can see it
-export TARGET_COMMIT="$(git rev-parse "${TARGET_COMMIT}")"
+# Export values for python callback
+export ANON_DATE ANON_NAME ANON_EMAIL
+export TARGET_COMMIT_HASH="$(git rev-parse "${TARGET_COMMIT}")"
 
 git filter-repo \
   --force \
@@ -95,18 +131,18 @@ git filter-repo \
     import os
     from datetime import datetime
 
-    target = os.environ.get("TARGET_COMMIT", "").strip()
+    target = os.environ["TARGET_COMMIT_HASH"]
 
     if commit.original_id.hex() == target:
-        name  = os.environb.get(b"GIT_ANON_USERNAME", b"Satoshi Nakamoto")
-        email = os.environb.get(b"GIT_ANON_USEREMAIL", b"satoshi@gmx.com")
+        name  = os.environ["ANON_NAME"].encode()
+        email = os.environ["ANON_EMAIL"].encode()
+        date_str = os.environ["ANON_DATE"]
 
         commit.author_name      = name
         commit.author_email     = email
         commit.committer_name   = name
         commit.committer_email  = email
 
-        date_str = os.environ.get("GIT_ANON_DATE", "2008-10-31 18:15:42 +0000")
         try:
             dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S %z")
             commit.author_date = commit.committer_date = int(dt.timestamp())
@@ -118,8 +154,8 @@ git filter-repo \
   ' \
   --refs "${TARGET_COMMIT}"
 
-# If we just changed HEAD, refresh the index/working tree
-if [ "$(git rev-parse "${TARGET_COMMIT}")" = "$(git rev-parse HEAD)" ]; then
+# Refresh index if we rewrote HEAD
+if [ "${TARGET_COMMIT_HASH}" = "$(git rev-parse HEAD)" ]; then
     git reset --quiet --soft HEAD@{1} 2>/dev/null || true
     git reset --quiet HEAD
 fi
