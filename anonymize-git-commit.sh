@@ -8,6 +8,9 @@ DEFAULT_NAME='Anon'
 DEFAULT_EMAIL='anon@localhost'
 DEFAULT_KEEPUSER='0'
 DEFAULT_KEEPDATE='0'
+DEFAULT_KEEPYEAR='0'
+DEFAULT_KEEPMONTH='0'
+DEFAULT_KEEPDAY='0'
 
 # ──────────────────────────────────────────────────────────────────────
 # HELP
@@ -53,6 +56,9 @@ NAME_ARG=""
 EMAIL_ARG=""
 KEEPUSER_ARG=""
 KEEPDATE_ARG=""
+KEEPYEAR_ARG=""
+KEEPMONTH_ARG=""
+KEEPDAY_ARG=""
 NOCONFIRM_ARG=""
 NOBACKUP_ARG=""
 TARGET_COMMIT="HEAD"
@@ -82,6 +88,18 @@ while [[ $# -gt 0 ]]; do
             KEEPDATE_ARG='1'
             shift
             ;;
+        --keep-year)
+            KEEPYEAR_ARG='1'
+            shift
+            ;;
+        --keep-month)
+            KEEPMONTH_ARG='1'
+            shift
+            ;;
+        --keep-day)
+            KEEPDAY_ARG='1'
+            shift
+            ;;
         --no-confirm)
             NOCONFIRM_ARG='1'
             shift
@@ -104,30 +122,40 @@ done
 # ──────────────────────────────────────────────
 # VALIDATE ARGS
 
+# validate commit
 if ! git rev-parse --quiet --verify "${TARGET_COMMIT}^{commit}" >/dev/null 2>&1; then
     printf 'Error: Commit "%s" does not exist or is not a commit object.\n' "${TARGET_COMMIT}" >&2
     exit 1
 fi
 
-if [[ "$KEEPUSER_ARG" == '1' && "$KEEPDATE_ARG" == '1' ]]; then
-    printf 'Error: the flags --keep-user and --keep-date cannot be used together!\n' >&2
-    exit 1
-fi
+# validate conflicting flags
 
-if [[ "$KEEPUSER_ARG" == '1' && "$NAME_ARG" != '' ]]; then
-    printf 'Error: the flags --keep-user and --name cannot be used together!\n' >&2
-    exit 1
-fi
+flag_conflicts=0
+check_incompatible() {
+    local flag1="$1"
+    local flag2="$3"
+    local value1="$2"
+    local value2="$4"
+    if [[ -n "$value1" && -n "$value2" ]]; then
+        printf 'Error: flags %s and %s cannot be used together\n' "$flag1" "$flag2" >&2
+        flag_conflicts=1
+    fi
+}
 
-if [[ "$KEEPUSER_ARG" == '1' && "$EMAIL_ARG" != '' ]]; then
-    printf 'Error: the flags --keep-user and --email cannot be used together!\n' >&2
-    exit 1
-fi
+check_incompatible --keep-user  "$KEEPUSER_ARG"  --name       "$NAME_ARG"
+check_incompatible --keep-user  "$KEEPUSER_ARG"  --email      "$EMAIL_ARG"
+check_incompatible --date       "$DATE_ARG"      --keep-date  "$KEEPDATE_ARG"
+check_incompatible --date       "$DATE_ARG"      --keep-year  "$KEEPYEAR_ARG"
+check_incompatible --date       "$DATE_ARG"      --keep-month "$KEEPMONTH_ARG"
+check_incompatible --date       "$DATE_ARG"      --keep-day   "$KEEPDAY_ARG"
+check_incompatible --keep-date  "$KEEPDATE_ARG"  --keep-year  "$KEEPYEAR_ARG"
+check_incompatible --keep-date  "$KEEPDATE_ARG"  --keep-month "$KEEPMONTH_ARG"
+check_incompatible --keep-date  "$KEEPDATE_ARG"  --keep-day   "$KEEPDAY_ARG"
+check_incompatible --keep-year  "$KEEPYEAR_ARG"  --keep-month "$KEEPMONTH_ARG"
+check_incompatible --keep-year  "$KEEPYEAR_ARG"  --keep-day   "$KEEPDAY_ARG"
+check_incompatible --keep-month "$KEEPMONTH_ARG" --keep-day   "$KEEPDAY_ARG"
 
-if [[ "$KEEPDATE_ARG" == '1' && "$DATE_ARG" != '' ]]; then
-    printf 'Error: the flags --keep-date and --date cannot be used together!\n' >&2
-    exit 1
-fi
+[[ "$flag_conflicts" -ne 0 ]] && exit 1
 
 # ──────────────────────────────────────────────
 # RESOLVE ARGS
@@ -137,6 +165,9 @@ ANON_GIT_NAME="${NAME_ARG:-${ANON_GIT_NAME:-${DEFAULT_NAME}}}"
 ANON_GIT_EMAIL="${EMAIL_ARG:-${ANON_GIT_EMAIL:-${DEFAULT_EMAIL}}}"
 ANON_GIT_KEEPUSER="${KEEPUSER_ARG:-${ANON_GIT_KEEPUSER:-${DEFAULT_KEEPUSER}}}"
 ANON_GIT_KEEPDATE="${KEEPDATE_ARG:-${ANON_GIT_KEEPDATE:-${DEFAULT_KEEPDATE}}}"
+ANON_GIT_KEEPYEAR="${KEEPYEAR_ARG:-${ANON_GIT_KEEPYEAR:-${DEFAULT_KEEPYEAR}}}"
+ANON_GIT_KEEPMONTH="${KEEPMONTH_ARG:-${ANON_GIT_KEEPMONTH:-${DEFAULT_KEEPMONTH}}}"
+ANON_GIT_KEEPDAY="${KEEPDAY_ARG:-${ANON_GIT_KEEPDAY:-${DEFAULT_KEEPDAY}}}"
 TARGET_COMMIT=$(git rev-parse "$TARGET_COMMIT")
 
 # ──────────────────────────────────────────────────────────────────────
