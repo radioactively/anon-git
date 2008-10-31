@@ -237,23 +237,26 @@ printf '\n'
 current_branch=$(git branch --show-current)
 date=$(date +%F_%R:%S:%N)
 
-if [[ "${ANON_GIT_CURRENTBRANCH}" != '1' ]]; then
-    new_branch="${current_branch}_anonymized_${date}"
-    git switch --create "$new_branch"
-    printf 'Created new branch %s from %s\n' "$new_branch" "$current_branch"
-    printf 'Using branch %s to rewrite commits.\n' "$new_branch"
-elif [[ "$NOBACKUP_ARG" != "1" ]]; then
-    backup_branch="${current_branch}_backup_${date}"
-    git branch "${backup_branch}"
-    printf 'Created backup branch %s from %s\n' "$backup_branch" "$current_branch"
-    printf 'Using branch %s to rewrite commits\n' "$current_branch"
-else
-    printf 'WARNING! Overwriting existing branch %s without backup!\n' "$current_branch"
+if [[ "$ANON_GIT_DRYRUN" != '1' ]]; then
+    if [[ "$ANON_GIT_CURRENTBRANCH" != '1' ]]; then
+        new_branch="${current_branch}_anonymized_${date}"
+        git switch --create "$new_branch"
+        printf 'Created new branch %s from %s\n' "$new_branch" "$current_branch"
+        printf 'Using branch %s to rewrite commits.\n' "$new_branch"
+    elif [[ "$NOBACKUP_ARG" != "1" ]]; then
+        backup_branch="${current_branch}_backup_${date}"
+        git branch "${backup_branch}"
+        printf 'Created backup branch %s from %s\n' "$backup_branch" "$current_branch"
+        printf 'Using branch %s to rewrite commits\n' "$current_branch"
+    else
+        printf 'WARNING! Overwriting existing branch %s without backup!\n' "$current_branch"
+    fi
 fi
+
 # ──────────────────────────────────────────────────────────────────────
 # CONFIRMATION
 
-if [[ "$NOCONFIRM_ARG" != '1' ]]; then
+if [[ "$NOCONFIRM_ARG" != '1' && "$ANON_GIT_DRYRUN" != '1' ]]; then
     read -p "Continue? (y/N) " -n 1 -r
     printf '\n'
     [[ $REPLY =~ ^[Yy]$ ]] || exit 1
@@ -283,7 +286,7 @@ fi
 # DRYRUN
 
 dryrun_file=''
-if [[ "$DRYRUN_ARG" -eq 1 ]]; then
+if [[ "${ANON_GIT_DRYRUN}" -eq 1 ]]; then
     dryrun_file=$(mktemp)
 fi
 
@@ -372,14 +375,8 @@ git filter-repo --force --commit-callback "
         author_date = date_encoded
         committer_date = date_encoded
 
-    if dryrun != 1:
-        commit.author_name = author_name
-        commit.author_email = author_email
-        commit.author_date = author_date
-        commit.committer_name = committer_name
-        commit.committer_email = committer_email
-        commit.committer_date = committer_date
-    else:
+    # don't rewrite history, just pretend
+    if dryrun == 1:
         f = open('${dryrun_file}', 'a')
         f.write('Commit:')
 
@@ -399,14 +396,23 @@ git filter-repo --force --commit-callback "
 
         id = commit.original_id.decode()
 
-        f.write(id)
+        f.write('%s\n' % id)
         f.write('Author: %s <%s> (%s) -> %s <%s> (%s)\n' % (an, ae, ad, new_an, new_ae, new_ad))
         f.write('Committer: %s <%s> (%s) -> %s <%s> (%s)\n' % (cn, ce, cd, new_cn, new_ce, new_cd))
         f.write('\n')
         f.close()
+        return
+
+    # actually rewrite history
+    commit.author_name = author_name
+    commit.author_email = author_email
+    commit.author_date = author_date
+    commit.committer_name = committer_name
+    commit.committer_email = committer_email
+    commit.committer_date = committer_date
 " --refs HEAD >&2
 
-if [[ "$ANON_GIT_DRYRUN" -eq 1 && -f "$dryrun_file" ]]; then
+if [[ "$ANON_GIT_DRYRUN" == '1' && -f "$dryrun_file" ]]; then
     cat "$dryrun_file"
 fi
 
