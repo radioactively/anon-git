@@ -131,11 +131,13 @@ ANON_GIT_NAME="${NAME_ARG:-${ANON_GIT_NAME:-${DEFAULT_NAME}}}"
 ANON_GIT_EMAIL="${EMAIL_ARG:-${ANON_GIT_EMAIL:-${DEFAULT_EMAIL}}}"
 ANON_GIT_KEEPUSER="${KEEPUSER_ARG:-${ANON_GIT_KEEPUSER:-${DEFAULT_KEEPUSER}}}"
 ANON_GIT_KEEPDATE="${KEEPDATE_ARG:-${ANON_GIT_KEEPDATE:-${DEFAULT_KEEPDATE}}}"
+TARGET_COMMIT=$(git rev-parse "$TARGET_COMMIT")
 
 # ──────────────────────────────────────────────────────────────────────
 # CONFIRM
 
-printf 'Anonymizing commit: %s\n' "$(git rev-parse --short "${TARGET_COMMIT}")" >&2
+short_commit=$(git rev-parse --short "$TARGET_COMMIT")
+printf 'Anonymizing commit: %s\n' "$short_commit" >&2
 printf 'Values that will be used:\n' >&2
 [[ $ANON_GIT_KEEPUSER == '0' ]] && printf '  Identity : %s <%s>\n' "${ANON_GIT_NAME}" "${ANON_GIT_EMAIL}" >&2
 [[ $ANON_GIT_KEEPDATE == '0' ]] && printf '  Date     : %s\n' "${ANON_GIT_DATE}" >&2
