@@ -1,6 +1,19 @@
 #!/usr/bin/env bash
 
 # ──────────────────────────────────────────────
+# SAFETY CHECKS
+
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+    printf 'AnonGit must be run inside a git repository.\n'
+    exit 1
+fi
+
+if ! git diff-index --quiet HEAD -- || ! git diff-files --quiet; then
+    printf 'Repository has uncommitted changes. Commit or stash first to prevent losing the changes.\n'
+    exit 1
+fi
+
+# ──────────────────────────────────────────────
 # DEFAULTS
 
 DEFAULT_DATE='2008-10-31 00:00:00 +0000'
@@ -183,8 +196,6 @@ done
 # VALIDATE ARGS
 
 flag_errors=0
-
-# validate conflicting flags
 check_incompatible() {
     local flag1="$1"
     local flag2="$3"
@@ -438,10 +449,13 @@ git filter-repo --force --commit-callback "
     commit.committer_name = committer_name
     commit.committer_email = committer_email
     commit.committer_date = committer_date
-" --refs HEAD >&2
+" --refs HEAD 2>/dev/null >&2
 
+# Preview output using pager defined by $PAGER. Falls back to cat.
 if [[ "$ANON_GIT_DRYRUN" == '1' && -f "$dryrun_file" ]]; then
-    cat "$dryrun_file"
+    pager=${PAGER:-cat}
+    command "$pager" "$dryrun_file"
+else
+    printf 'Done. History has been rewritten.\n'
 fi
 
-printf 'Done. History has been rewritten.\n'
