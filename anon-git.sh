@@ -39,6 +39,7 @@ Options:
   --no-backup                     Do not create backup branch
   --current-branch                Overwrite current branch instead of creating a copy of it
   --entire-history                Rewrite entire history and not a single commit
+  --dry-run                       Show history changes without rewriting it
 
 Arguments:
   commit(s)               Commit(s) to anonymize (can be: hash, HEAD~3, branch, tag, ...)
@@ -51,9 +52,32 @@ Priority (highest to lowest):
   3. Hardcoded defaults (${DEFAULT_NAME} <${DEFAULT_EMAIL}>)
 
 Examples:
-  ./anon-git.sh
-  ./anon-git.sh HEAD~2
-  ./anon-git.sh --date "2024-01-01 00:00:00 +0000" --name "Jane Doe" --email "jane@anon.dev" 8ddf55
+    # Anonymize current HEAD with defaults
+    ./anon-git.sh
+
+    # Anonymize two commits ago
+    ./anon-git.sh HEAD~2
+
+    # Explicit values at specific commit
+    ./anon-git.sh --date "2024-01-01 00:00:00 +0000" \
+                            --name "Jane Doe" \
+                            --email "jane@anon.dev" \
+                            8ddf55a
+
+    # Keep real name/email, only change date
+    ./anon-git.sh --keep-user --date "2025-06-15T14:20:00Z"
+
+    # Anonymize the last 10 commits using shell expansion (works in bash and zsh)
+    ./anon-git.sh HEAD~{0..9}
+
+    # Anonymize commits within a specific date range
+    git log --format=%H after='2023-01-01' --before='2024-01-01' | xargs ./anon-git
+
+    # Anonymize commits where the commit author matches a pattern
+    git log --format=%H author='Frederic' | xargs ./anon-git
+
+    # Anonymize commits where the commit message matches a message
+    git log --format=%H grep='Some regex to match the commit message' | xargs ./anon-git
 EOF
     exit 0
 }
