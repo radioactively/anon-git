@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-# Assume anonymize-git-history.sh is in the parent directory
+# Assume anonymize-git-commit.sh is in the parent directory
 SCRIPT_DIR=$(realpath "$(dirname "$0")/..")
-SCRIPT_NAME=anonymize-git-history.sh
+SCRIPT_NAME=anon-git.sh
 SCRIPT=${SCRIPT_DIR}/${SCRIPT_NAME}
 
 # Create temp dir to work on
@@ -84,55 +84,73 @@ test_script() {
   done
   expected_author="${expected_name} <${expected_email}>"
 
-  # store old logs for comparison
-  OLDLOG_DATE=$(git log --date=iso --format='%ai %ci')
-  OLDLOG_AUTHOR=$(git log --format='%an <%ae> %cn <%ce>')
+  # Pick random commit
+  random_index=$(( $(od -An -N2 -tu2 </dev/urandom) % (COMMIT_COUNT - 1) ))
 
-  # run script
-  cmd="./${SCRIPT_NAME} ${args[*]}"
+  # store old logs (except commit to be modified)
+  commit_hash=$(git rev-parse "HEAD~${random_index}")
+  commit_format='%H %an <%aE> (%ai) %cn <%cE> (%ci)'
+  OLD_AUTHOR=$(git show --format='%an <%ae> %cn <%ce>' "$commit_hash")
+  OLD_DATE=$(git show --format='%ai %ci' "$commit_hash")
+  OLD_COMMITS=$(git log --format="$commit_format" | grep --invert-match "$commit_hash" | sed 's/^[0-9a-f]\+//')
+
+  # Run script
+  cmd="./${SCRIPT_NAME} ${args[*]} HEAD~${random_index}"
   printf 'Running %s\n' "$cmd"
-  ./${SCRIPT_NAME} "${args[@]}" >/dev/null 2>&1
+  ./${SCRIPT_NAME} "${args[@]}" "HEAD~${random_index}" >/dev/null 2>&1
+
+  # store new logs (except modified commit)
+  new_commit_hash=$(git rev-parse "HEAD~${random_index}")
 
   # store new logs for comparison
-  NEWLOG=$(git log --pretty=fuller --date=iso)
-  NEWLOG_DATE=$(git log --date=iso --format='%ai %ci')
-  NEWLOG_AUTHOR=$(git log --format='%an <%ae> %cn <%ce>')
+  NEW_AUTHOR=$(git show --format='%an <%ae> %cn <%ce>' "$new_commit_hash")
+  NEW_DATE=$(git show --format='%ai %ci' "$new_commit_hash")
+  NEW_COMMITS=$(git log --format="$commit_format" | grep --invert-match "$new_commit_hash" | sed 's/^[0-9a-f]\+//')
+  NEW_COMMIT=$(git show --pretty=fuller --no-patch --date=iso "$new_commit_hash")
 
-  # expected matches
-  author_matches=$(grep --count "^Author:\s\+${expected_author}" <<<"$NEWLOG")
-  commiter_matches=$(grep --count "^Commit:\s\+${expected_author}" <<<"$NEWLOG")
-  author_date_matches=$(grep --count "^AuthorDate:\s\+${expected_date}" <<<"$NEWLOG")
-  commiter_date_matches=$(grep --count "^CommitDate:\s\+${expected_date}" <<< "$NEWLOG")
+  # Check results
 
-  # check for errors
+  ## Real values
+  author_matches=$(grep --count "^Author:\s\+${expected_author}" <<<"$NEW_COMMIT")
+  commiter_matches=$(grep --count "^Commit:\s\+${expected_author}" <<<"$NEW_COMMIT")
+  author_date_matches=$(grep --count "^AuthorDate:\s\+${expected_date}" <<<"$NEW_COMMIT")
+  commiter_date_matches=$(grep --count "^CommitDate:\s\+${expected_date}" <<< "$NEW_COMMIT")
+
+  # check for erros
   errors=0
 
   # author & commiter check
-  if [[ "$keep_user" -ne 1 && "$author_matches" -ne "$COMMIT_COUNT" ]]; then
+  if [[ "$keep_user" != '1' && "$author_matches" -ne 1 ]]; then
     printf 'Error: author name & email not overwrriten\n'
     errors=$(( errors + 1 ))
   fi
-  if [[ "$keep_user" -ne 1 && "$commiter_matches" -ne "$COMMIT_COUNT" ]]; then
+  if [[ "$keep_user" != '1' && "$commiter_matches" -ne 1 ]]; then
     printf 'Error: commiter name & email not overwrriten\n'
     errors=$(( errors + 1 ))
   fi
-  if [[ "$keep_user" -eq 1 && "$OLDLOG_AUTHOR" != "$NEWLOG_AUTHOR" ]]; then
-    printf 'Error: flag --keep-user failed\n'
+  if [[ "$keep_user" == '1' && "$NEW_AUTHOR" != "$OLD_AUTHOR" ]]; then
+    printf 'Error: flag --keep-user not respected\n'
     errors=$(( errors + 1 ))
   fi
 
   # date check
-  if [[ "$keep_date" -ne 1 && "$author_date_matches" -ne "$COMMIT_COUNT" ]]; then
+  if [[ "$keep_date" != '1' && "$author_date_matches" -ne 1 ]]; then
     printf 'Error: author date not overwrriten\n'
     errors=$(( errors + 1 ))
   fi
-  if [[ "$keep_date" -ne 1 && "$commiter_date_matches" -ne "$COMMIT_COUNT" ]]; then
+  if [[ "$keep_date" != '1' && "$commiter_date_matches" -ne 1 ]]; then
     printf 'Error: commiter date not overwrriten\n'
     errors=$(( errors + 1 ))
   fi
-  if [[ "$keep_date" -eq 1 && "$OLDLOG_DATE" != "$NEWLOG_DATE" ]]; then
-    printf 'Error: flag --keep-date failed\n'
-    errors=$(( errors +1 ))
+  if [[ "$keep_date" == '1' && "$NEW_DATE" != "$OLD_DATE" ]]; then
+    printf 'Error: flag --keep-date not respected\n'
+    errors=$(( errors + 1 ))
+  fi
+
+  # other commmits check
+  if [[ "$OLD_COMMITS" != "$NEW_COMMITS" ]]; then
+    printf 'Error: other commits were affected!'
+    errors=$(( errors + 1))
   fi
 
   # feedback
