@@ -6,7 +6,7 @@ SCRIPT_NAME=anonymize-git-commit.sh
 SCRIPT=${SCRIPT_DIR}/${SCRIPT_NAME}
 
 # Create temp dir to work on
-TMP_DIR=$(mktemp -d /tmp/anon_git_test_hist.XXXXXX)
+TMP_DIR=$(mktemp -d /tmp/anon_git_test.XXXXXX)
 cd "$TMP_DIR" || exit 1
 cp "$SCRIPT" .
 chmod +x "./${SCRIPT_NAME}"
@@ -86,9 +86,9 @@ test_script() {
 
   # Pick random commit
   random_index=$(( $(od -An -N2 -tu2 </dev/urandom) % (COMMIT_COUNT - 1) ))
-  commit_hash=$(git rev-parse "HEAD~${random_index}")
 
   # store old logs (except commit to be modified)
+  commit_hash=$(git rev-parse "HEAD~${random_index}")
   commit_format='%H %an <%aE> (%ai) %cn <%cE> (%ci)'
   OLD_AUTHOR=$(git show --format='%an <%ae> %cn <%ce>' "$commit_hash")
   OLD_DATE=$(git show --format='%ai %ci' "$commit_hash")
@@ -120,29 +120,29 @@ test_script() {
   errors=0
 
   # author & commiter check
-  if [[ "$keep_user" -ne 1 && "$author_matches" -ne 1 ]]; then
+  if [[ "$keep_user" != '1' && "$author_matches" -ne 1 ]]; then
     printf 'Error: author name & email not overwrriten\n'
     errors=$(( errors + 1 ))
   fi
-  if [[ "$keep_user" -ne 1 && "$commiter_matches" -ne 1 ]]; then
+  if [[ "$keep_user" != '1' && "$commiter_matches" -ne 1 ]]; then
     printf 'Error: commiter name & email not overwrriten\n'
     errors=$(( errors + 1 ))
   fi
-  if [[ "$keep_user" -eq 1 && "$NEW_AUTHOR" != "$OLD_AUTHOR" ]]; then
+  if [[ "$keep_user" == '1' && "$NEW_AUTHOR" != "$OLD_AUTHOR" ]]; then
     printf 'Error: flag --keep-user not respected\n'
     errors=$(( errors + 1 ))
   fi
 
   # date check
-  if [[ "$keep_date" -ne 1 && "$author_date_matches" -ne 1 ]]; then
+  if [[ "$keep_date" != '1' && "$author_date_matches" -ne 1 ]]; then
     printf 'Error: author date not overwrriten\n'
     errors=$(( errors + 1 ))
   fi
-  if [[ "$keep_date" -ne 1 && "$commiter_date_matches" -ne 1 ]]; then
+  if [[ "$keep_date" != '1' && "$commiter_date_matches" -ne 1 ]]; then
     printf 'Error: commiter date not overwrriten\n'
     errors=$(( errors + 1 ))
   fi
-  if [[ "$keep_date" -eq 1 && "$NEW_DATE" != "$OLD_DATE" ]]; then
+  if [[ "$keep_date" == '1' && "$NEW_DATE" != "$OLD_DATE" ]]; then
     printf 'Error: flag --keep-date not respected\n'
     errors=$(( errors + 1 ))
   fi
@@ -165,7 +165,7 @@ test_script() {
 }
 
 cleanup() {
-  cd - >/dev/null || exit 0
+  cd - || exit 0
   rm -rf "$TMP_DIR"
 }
 

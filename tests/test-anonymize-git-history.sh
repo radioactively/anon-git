@@ -6,7 +6,7 @@ SCRIPT_NAME=anonymize-git-history.sh
 SCRIPT=${SCRIPT_DIR}/${SCRIPT_NAME}
 
 # Create temp dir to work on
-TMP_DIR=$(mktemp -d /tmp/anon_git_test_hist.XXXXXX)
+TMP_DIR=$(mktemp -d /tmp/anon_git_test.XXXXXX)
 cd "$TMP_DIR" || exit 1
 cp "$SCRIPT" .
 chmod +x "./${SCRIPT_NAME}"
