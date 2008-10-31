@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
-# Assume anonymize-git-history.sh is in the parent directory
+# Assume anonymize-git-commit.sh is in the parent directory
 SCRIPT_DIR=$(realpath "$(dirname "$0")/..")
 SCRIPT_NAME=anonymize-git-commit.sh
 SCRIPT=${SCRIPT_DIR}/${SCRIPT_NAME}
 
-# Create temp dir
+# Create temp dir to work on
 TMP_DIR=$(mktemp -d /tmp/anon_git_test_hist.XXXXXX)
 cd "$TMP_DIR" || exit 1
 cp "$SCRIPT" .
@@ -159,7 +159,7 @@ test_script() {
     printf 'Test %s passed.\n\n' "$CURRENT_TEST_INDEX"
   else
     TESTS_FAILED=$(( TESTS_FAILED + 1 ))
-    printf 'Test %s failed with %s errors.\n' "$CURRENT_TEST_INDEX" "$errors"
+    printf 'Test %s failed with %s errors.\n\n' "$CURRENT_TEST_INDEX" "$errors"
   fi
   TOTAL_ERRORS=$(( TOTAL_ERRORS + errors ))
 }

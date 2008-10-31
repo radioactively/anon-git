@@ -141,7 +141,7 @@ test_script() {
     printf 'Test %s passed.\n\n' "$CURRENT_TEST_INDEX"
   else
     TESTS_FAILED=$(( TESTS_FAILED + 1 ))
-    printf 'Test %s failed with %s errors.\n' "$CURRENT_TEST_INDEX" "$errors"
+    printf 'Test %s failed with %s errors.\n\n' "$CURRENT_TEST_INDEX" "$errors"
   fi
   TOTAL_ERRORS=$(( TOTAL_ERRORS + errors ))
 }
