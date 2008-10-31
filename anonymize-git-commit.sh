@@ -171,14 +171,28 @@ ANON_GIT_KEEPDAY="${KEEPDAY_ARG:-${ANON_GIT_KEEPDAY:-${DEFAULT_KEEPDAY}}}"
 TARGET_COMMIT=$(git rev-parse "$TARGET_COMMIT")
 
 # ──────────────────────────────────────────────────────────────────────
-# CONFIRM
+# CONFIRMATION
 
-short_commit=$(git rev-parse --short "$TARGET_COMMIT")
-printf 'Anonymizing commit: %s\n' "$short_commit"
-printf 'Values that will be used:\n'
-[[ $ANON_GIT_KEEPUSER == '0' ]] && printf '  Identity : %s <%s>\n' "${ANON_GIT_NAME}" "${ANON_GIT_EMAIL}"
-[[ $ANON_GIT_KEEPDATE == '0' ]] && printf '  Date     : %s\n' "${ANON_GIT_DATE}"
-printf '\n' >&2
+if [[ -n "$TARGET_COMMIT" ]]; then
+    short_commit=$(git rev-parse --short "$TARGET_COMMIT")
+    printf 'Anonymizing commit: %s\n' "$short_commit"
+fi
+if [[ -n "$KEEPUSER_ARG" ]]; then
+    printf 'Using identity: %s <%s>\n' "${ANON_GIT_NAME}" "${ANON_GIT_EMAIL}"
+fi
+if [[ -n "$KEEPDATE_ARG" ]]; then
+    printf 'Using date: %s\n' "${ANON_GIT_DATE}"
+fi
+if [[ -n "$KEEPYEAR_ARG" ]]; then
+    printf 'Using commit date year (anonymizing only month, day, time and tz).\n'
+fi
+if [[ -n "$KEEPMONTH_ARG" ]]; then
+    printf 'Using commit date year and month (anonymizing only day, time and tz).\n'
+fi
+if [[ -n "$KEEPDAY_ARG" ]]; then
+    printf 'Using commit date year, month and day (anonymizing only time and tz).\n'
+fi
+printf '\n'
 
 if [[ "$NOCONFIRM_ARG" != '1' ]]; then
     read -p "Continue? (y/N) " -n 1 -r
@@ -219,20 +233,30 @@ git filter-repo --force --commit-callback "
             commit.author_email = commit.committer_email = email.encode()
 
         if keepdate != 1:
-            # date object
-            dt = datetime.strptime(date, '%Y-%m-%d %H:%M:%S %z')
-            ts = int(dt.timestamp())
-
-            # timezone as bytes
-            offset_seconds = int(dt.utcoffset().total_seconds())
-            offset_hours = offset_seconds // 60
-            offset_mins = offset_seconds % 60
-            sign = '+' if offset_seconds >= 0 else '-'
-            offset_bytes = ('%s%02d%02d' % (sign, offset_hours, offset_mins)).encode()
+            if keepyear or keepmonth or keepday:
+                unix_str, _ = commit.author_date.split()
+                ts = float(unix_str)
+                dt = datetime.utcfromtimestamp(ts)
+                if keepyear or keepmonth or keepday:
+                    dt = dt.replace(hour=0, minute=0, second=0)
+                if keepyear or keepmonth:
+                    dt = dt.replace(day=1)
+                if keepyear:
+                    dt = dt.replace(month=1)
+                ts = dt.timestamp()
+                offset = '+0000'
+            else:
+                dt = datetime.strptime(date, '%Y-%m-%d %H:%M:%S %z')
+                ts = int(dt.timestamp())
+                offset_seconds = int(dt.utcoffset().total_seconds())
+                offset_hours = offset_seconds // 60
+                offset_mins = offset_seconds % 60
+                offset_sign = '+' if offset_seconds >= 0 else '-'
+                offset = '%s%02d%02d' % (offset_sign, offset_hours, offset_mins)
 
             # date formartted
-            date = b'%d %s' % (ts, offset_bytes)
-            commit.author_date = commit.committer_date = date
+            date_as_bytes = b'%d %s' % (ts, offset.encode())
+            commit.author_date = commit.committer_date = date_as_bytes
 " >&2
 
 # Refresh index if we rewrote HEAD
