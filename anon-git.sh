@@ -21,7 +21,7 @@ show_help() {
 Anonymizes git commit metadata.
 
 Usage:
-  ./anonymize-git-commit.sh [OPTIONS] [commits]
+  ./anon-git.sh [OPTIONS] [commits]
 
 Options:
   -h, --help                      Show this help message and exit

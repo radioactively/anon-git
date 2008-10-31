@@ -62,33 +62,35 @@ pip install git-filter-repo
 
 ## Usage
 
-This repository two scripts to anonymize timestamps and author & commiter identity: `anonymize-git-commit.sh` and `anonymize-git-history`.
+This repository contains a script called `anon-git`, which relies upon `git
+filter-repo`. Download it or copy-paste into a file. Execute them from inside
+a git respository either directly `./anon-git.sh` or from your `$PATH`.
 
-Download them or copy-paste into a file. Execute them from inside a git respository either directly `./anonymize-git-commit.sh` or from your `$PATH`.
-
-**For safety, both scripts create a backup branch before rewriting history :-)**.
-
-### 1. `anonymize-git-commit.sh`
+**For safety, the script creates a backup branch before rewriting history.
 
 Rewrite **one commit** (author, committer, dates).
 
 ```bash
-./anonymize-git-commit.sh [OPTIONS] [commit]
+./anon-git.sh [OPTIONS] [commits]
 ```
 
 **Default behavior**: anonymizes `HEAD`
 
-**Options**
+### Options
 
 ```
--h, --help                       Show help message and exit
---date        "ISO date"         Set author & committer date (example: "2025-03-10 13:37:00 +0000")
---name        "Full name"        Set author & committer name
---email       "Email address"    Set author & committer email
---keep-user                      Do not change name/email
---keep-date                      Do not change dates
---no-confirm                     Do not prompt for confirmation
---no-backup                      Do not create backup branch
+  -h, --help                      Show this help message and exit
+  --date        ISO Date          Date to use (example: "2025-03-10 13:37:00 +0000")
+  --name        "Full name"       Name to use for author & committer
+  --email       "Email address"   Email to use for author & committer
+  --keep-user                     Do not change user name or author
+  --keep-date                     Do not change date
+  --keep-year                     Do not change commit year
+  --keep-month                    Do not change commit month (and year)
+  --keep-day                      Do not change commit day (and year and month)
+  --no-confirm                    Do not prompt for confirmation
+  --no-backup                     Do not create backup branch
+  --entire-history                Rewrite entire history and not a single commit
 ```
 
 **Priority order** (highest to lowest):
@@ -97,52 +99,40 @@ Rewrite **one commit** (author, committer, dates).
 2. Environment variables (`ANON_GIT_DATE`, `ANON_GIT_NAME`, `ANON_GIT_EMAIL`, `ANON_GIT_KEEPUSER`, `ANON_GIT_KEEPDATE`)
 3. Hardcoded defaults
 
-**Examples**
+### Examples
 
 ```bash
 # Anonymize current HEAD with defaults
-./anonymize-git-commit.sh
+./anon-git.sh
 
 # Anonymize two commits ago
-./anonymize-git-commit.sh HEAD~2
+./anon-git.sh HEAD~2
 
 # Explicit values + specific commit
-./anonymize-git-commit.sh --date "2024-01-01 00:00:00 +0000" \
+./anon-git.sh --date "2024-01-01 00:00:00 +0000" \
                           --name "Jane Doe" \
                           --email "jane@anon.dev" \
                           8ddf55a
 
 # Keep real name/email, only change date
-./anonymize-git-commit.sh --keep-user --date "2025-06-15T14:20:00Z"
+./anon-git.sh --keep-user --date "2025-06-15T14:20:00Z"
 ```
 
-### 2. `anonymize-git-history.sh`
-
-**Rewrite the entire history** of the current branch.
-
-**Warning**: rewrites history; force-push will be required (`git push --force-with-lease`)
+More examples using built-in filters provided by `git` in order to pick a set of
+commits matching the filter:
 
 ```bash
-./anonymize-git-history.sh [OPTIONS]
-```
+# Anonymize commits within a specific date range
+git log --format=%H after='2023-01-01' --before='2024-01-01' | xargs ./anon-git
 
-**Options**: same as `anonymize-git-commit.sh`
+# Anonymize commits where the commit author matches a pattern
+git log --format=%H author='Frederic' | xargs ./anon-git
 
-**Priority order**: same as `anonymize-git-commit.sh`
+# Anonymize commits where the commit author matches a pattern
+git log --format=%H author='Frederic' | xargs ./anon-git
 
-**Examples**
-
-```bash
-# Anonymize whole branch with defaults
-./anonymize-git-history.sh
-
-# Set uniform identity & date for all commits
-./anonymize-git-history.sh --date "2024-06-01 12:00:00 +0000" \
-                           --name "Anonymous" \
-                           --email "anon@example.com"
-
-# Keep original dates, only anonymize identity
-./anonymize-git-history.sh --keep-date --name "John Smith" --email "js@anon.local"
+# Anonymize commits where the commit message matches a message
+git log --format=%H grep='Some regex to match the commit message' | xargs ./anon-git
 ```
 
 ### Using anonymize-git-commit as a post-commit hook
@@ -171,10 +161,10 @@ You can automatically anonymize **every new commit right after** you run `git co
    set -e
 
    # Path to your anonymize script (adjust if needed)
-   SCRIPT="$PWD/anonymize-git-commit.sh"
+   SCRIPT="$PWD/anon-git.sh"
 
    if [ ! -x "$SCRIPT" ]; then
-       echo "Error: anonymize-git-commit.sh not found or not executable" >&2
+       echo "Error: anon-git.sh not found or not executable" >&2
        exit 1
    fi
 
@@ -186,7 +176,8 @@ You can automatically anonymize **every new commit right after** you run `git co
    # fi
 
    # Run anonymization on HEAD (the commit we just created)
-   # Customize flags/environment variables here:
+   #
+   # IMPORTANT: Customize flags/environment variables here before running it!
    "$SCRIPT" --no-confirm HEAD
 
    # Optional: show what changed
@@ -214,8 +205,8 @@ This gives seamless "anonymous-by-default" committing while still allowing manua
 
 ## Important notes
 
-- Both scripts create backup reflogs. You can recover with `git reflog` / `git reset` if something goes wrong
-- `anonymize-git-history.sh` rewrites **all** commits reachable from current HEAD
+- Backup branch is created with original commit history
+- You can recover with `git reflog` / `git reset` if something goes wrong even if you use `--no-backup`
 - `--keep-user` and `--keep-date` are useful for partial anonymization
 - Timestamps must be in a format `git` understands (ISO 8601 with timezone recommended)
 
@@ -229,17 +220,20 @@ This gives seamless "anonymous-by-default" committing while still allowing manua
 
 ## ROADMAP
 
-- [x] Add commit anonymization script
-- [x] Add history anonymization script
+- [x] Anonymizes entire history
+- [x] Anonymizes single commit
+- [x] Anonymizes set of commits
+- [x] Anonymizes set of commits filtered by author, commiter, date (before or after), or commit message
 - [x] Add option `--date` to set user date
 - [x] Add option `--email` to set user email
 - [x] Add option `--name` to set user name
 - [x] Add option `--keep-user` to keep user name & email
 - [x] Add option `--keep-date` to keep timestamps
-- [ ] Add option `--keep-year` to keep year in commit timestamp
-- [ ] Add option `--keep-month` to keep month in commit timestamp
-- [ ] Add option `--keep-day` to keep day in commit timestamp
+- [x] Add option `--keep-year` to keep year in commit timestamp
+- [x] Add option `--keep-month` to keep month in commit timestamp
+- [x] Add option `--keep-day` to keep day in commit timestamp
 - [x] Add option `--no-confirm` to skip confirmation prompt
 - [x] Add option `--no-backup` to skip backup creation
+- [ ] Add more tests to cover missing cases
 
 **Note**: the `--keep-*` flags may be useful for contribution statistics but provide less privacy.
