@@ -2,7 +2,7 @@
 
 # Assume anonymize-git-history.sh is in the parent directory
 SCRIPT_DIR=$(realpath "$(dirname "$0")/..")
-SCRIPT_NAME=anonymize-git-history.sh
+SCRIPT_NAME=anonymize-git-commit.sh
 SCRIPT=${SCRIPT_DIR}/${SCRIPT_NAME}
 
 # Create temp dir
@@ -28,7 +28,8 @@ done
 echo y | bash ./${SCRIPT_NAME} >/dev/null 2>&1
 
 # Store log
-LOG=$(git log --pretty=fuller --date=iso)
+commit=$(git log --format=oneline | cut -f 1 -d ' ' | shuf | head -n 1)
+LOG=$(git show --pretty=fuller --date=iso --no-patch "$commit")
 
 # Cleanup
 cd - >/dev/null || exit 0
@@ -51,19 +52,19 @@ commiter_date_matches=$(grep --count "^CommitDate:\s\+${expected_date}" <<< "$LO
 
 ## Error feedback if any
 errors=0
-if [[ "$author_matches" -ne "$commit_count" ]]; then
+if [[ "$author_matches" -ne 1 ]]; then
   printf 'Error: author name & email not overwrriten\n'
   errors=$(( errors + 1 ))
 fi
-if [[ "$commiter_matches" -ne "$commit_count" ]]; then
+if [[ "$commiter_matches" -ne 1 ]]; then
   printf 'Error: commiter name & email not overwrriten\n'
   errors=$(( errors + 1 ))
 fi
-if [[ "$author_date_matches" -ne "$commit_count" ]]; then
+if [[ "$author_date_matches" -ne 1 ]]; then
   printf 'Error: author date not overwrriten\n'
   errors=$(( errors + 1 ))
 fi
-if [[ "$commiter_date_matches" -ne "$commit_count" ]]; then
+if [[ "$commiter_date_matches" -ne 1 ]]; then
   printf 'Error: commiter date not overwrriten\n'
   errors=$(( errors + 1 ))
 fi
