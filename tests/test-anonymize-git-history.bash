@@ -11,20 +11,20 @@ cp "$SCRIPT" "$TMP_DIR"
 cd "$TMP_DIR" || exit 1
 
 # Init git repo
-git init
+git init >/dev/null
 git config --local user.name "Test User"
 git config --local user.email "test@example.com"
 
 # Make dummy commits
 for i in $(seq 1 5); do
   filename="file_${i}.txt"
-  echo "This is file $i" > "$filename"
-  git add "$filename" > /dev/null
-  git commit -m "Add file $filename" > /dev/null
+  echo "This is file $i" >"$filename"
+  git add "$filename" >/dev/null
+  git commit -m "Add file $filename" >/dev/null
 done
 
 # run script
-yes | bash ./anonymize-git-history.bash 2>/dev/null
+yes | bash ./anonymize-git-history.bash
 
 # Check new log
 NEW_LOG=$(git log --pretty=fuller)
