@@ -434,8 +434,10 @@ git filter-repo --force --commit-callback "
         sep = '\n' + '-' * 80 + '\n'
 
         f.write('%s\n' % id)
-        f.write('Author: %s <%s> (%s) -> %s <%s> (%s)\n' % (an, ae, ad, new_an, new_ae, new_ad))
-        f.write('Committer: %s <%s> (%s) -> %s <%s> (%s)\n' % (cn, ce, cd, new_cn, new_ce, new_cd))
+        f.write('Author:\t\t%s <%s> -> %s <%s> \n' % (an, ae, new_an, new_ae))
+        f.write('Committer:\t%s <%s> -> %s <%s> \n' % (cn, ce, new_cn, new_ce))
+        f.write('AuthorDate:\t%s -> %s\n' % (ad, new_ad))
+        f.write('CommitterDate:\t%s -> %s\n' % (cd, new_cd))
         f.write('\n')
         f.write(msg)
         f.write(sep)
