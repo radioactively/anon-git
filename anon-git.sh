@@ -13,6 +13,7 @@ DEFAULT_KEEPMONTH='0'
 DEFAULT_KEEPDAY='0'
 DEFAULT_ENTIREHISTORY='0'
 DEFAULT_CURRENTBRANCH='0'
+DEFAULT_DRYRUN='0'
 DEFAULT_COMMIT=$(git rev-parse HEAD)
 
 # ──────────────────────────────────────────────────────────────────────
@@ -70,6 +71,7 @@ KEEPMONTH_ARG=""
 KEEPDAY_ARG=""
 NOCONFIRM_ARG=""
 NOBACKUP_ARG=""
+DRYRUN_ARG=""
 ENTIREHISTORY_ARG=""
 CURRENTBRANCH_ARG=""
 COMMIT_ARG=""
@@ -131,6 +133,10 @@ while [[ $# -gt 0 ]]; do
         --commit)
             COMMIT_ARG="$2"
             shift 2
+            ;;
+        --dry-run)
+            DRYRUN_ARG='1'
+            shift
             ;;
         -*)
             printf 'Unknown option: %s\n' "$1" >&2
@@ -196,6 +202,7 @@ ANON_GIT_KEEPDAY="${KEEPDAY_ARG:-${ANON_GIT_KEEPDAY:-${DEFAULT_KEEPDAY}}}"
 ANON_GIT_ENTIREHISTORY="${ENTIREHISTORY_ARG:-${ANON_GIT_ENTIREHISTORY:-${DEFAULT_ENTIREHISTORY}}}"
 ANON_GIT_CURRENTBRANCH="${CURRENTBRANCH_ARG:-${ANON_GIT_CURRENTBRANCH:-${DEFAULT_CURRENTBRANCH}}}"
 ANON_GIT_COMMIT="${COMMIT_ARG:-${DEFAULT_COMMIT}}"
+ANON_GIT_DRYRUN="${DRYRUN_ARG:-${DEFAULT_DRYRUN}}"
 
 # ──────────────────────────────────────────────────────────────────────
 # VERBOSE INFO
@@ -273,6 +280,14 @@ if [[ -d "$PWD/.git/filter-repo" ]]; then
 fi
 
 # ──────────────────────────────────────────────────────────────────────
+# DRYRUN
+
+dryrun_file=''
+if [[ "$DRYRUN_ARG" -eq 1 ]]; then
+    dryrun_file=$(mktemp)
+fi
+
+# ──────────────────────────────────────────────────────────────────────
 # REWRITE LOGIC
 
 export TZ=UTC
@@ -284,74 +299,115 @@ git filter-repo --force --commit-callback "
     date = '${ANON_GIT_DATE}'
     target_commits = [c.encode() for c in '${ANON_GIT_COMMIT}'.split()]
 
-    #f = open('/dev/stderr', 'w')
-    #print(commit.original_id in target_commits, file=f)
-    #print(target_commits, file=f)
-    #f.close()
-
     keepuser = ${ANON_GIT_KEEPUSER}
     keepdate = ${ANON_GIT_KEEPDATE}
     keepyear = ${ANON_GIT_KEEPYEAR}
     keepmonth = ${ANON_GIT_KEEPMONTH}
     keepday = ${ANON_GIT_KEEPDAY}
+    dryrun = ${ANON_GIT_DRYRUN}
 
-    if ${ANON_GIT_ENTIREHISTORY} or commit.original_id in target_commits:
-        if keepuser != 1:
-            commit.author_name = commit.committer_name = name.encode()
-            commit.author_email = commit.committer_email = email.encode()
+    author_name = commit.author_name
+    author_email = commit.author_email
+    author_date = commit.author_date
+    committer_name = commit.committer_name
+    committer_email = commit.committer_email
+    committer_date = commit.committer_date
 
-        if keepdate != 1:
-            if keepyear or keepmonth or keepday:
-                unix_ts, offset = commit.author_date.decode().split()
+    if not ${ANON_GIT_ENTIREHISTORY} and not commit.original_id in target_commits:
+        return
 
-                # handle timezone offset
-                sign = 1 if offset.startswith('+') else -1
-                offset = offset.replace('+', '').replace('-', '')
-                if len(offset) == 4:
-                    hours   = int(offset[:2])
-                    minutes = int(offset[2:])
-                    seconds = 0
-                elif len(offset) == 6:
-                    hours   = int(offset[:2])
-                    minutes = int(offset[2:4])
-                    seconds = int(offset[4:])
-                else:
-                    raise ValueError('unsupported timezone format')
-                tz_offset = timedelta(hours=hours, minutes=minutes, seconds=seconds)
-                tz = timezone(sign * tz_offset)
+    def parse_git_date(date_bytes):
+        # @param   <bytes>              Git date (timestamp followed by timezone, i.e 1770000000 +0000)
+        # @returns <datetime.datetime>  Date object
 
-                # create date object
-                ts = float(unix_ts)
-                dt = datetime.fromtimestamp(ts, tz=tz)
-                dt = datetime.strptime('%d-%d-%d' % (dt.year, dt.month, dt.day), '%Y-%m-%d')
+        unix_ts, offset = date_bytes.decode().split()
+        sign = 1 if offset.startswith('+') else -1
+        offset = offset.replace('+', '').replace('-', '')
+        if len(offset) == 4:
+            hours   = int(offset[:2])
+            minutes = int(offset[2:])
+            seconds = 0
+        elif len(offset) == 6:
+            hours   = int(offset[:2])
+            minutes = int(offset[2:4])
+            seconds = int(offset[4:])
+        else:
+            raise ValueError('unsupported timezone format')
+        tz_offset = timedelta(hours=hours, minutes=minutes, seconds=seconds)
+        tz = timezone(sign * tz_offset)
+        ts = float(unix_ts)
+        dt = datetime.fromtimestamp(ts, tz=tz)
+        return dt
 
-                # anonymize date object
-                dt =  dt.replace(hour=0, minute=0, second=0)
-                if keepyear or keepmonth:
-                    dt = dt.replace(day=1)
-                if keepyear:
-                    dt = dt.replace(month=1)
+    if keepuser != 1:
+        author_name = name.encode()
+        author_email = email.encode()
+        committer_name = name.encode()
+        committer_email = email.encode()
 
-                # timestamp and offset of anonymized object
-                ts = dt.timestamp()
-                offset = '+0000'
+    if keepdate != 1:
+        if keepyear or keepmonth or keepday:
+            dt = parse_git_date(commit.author_date)
+            dt = datetime.strptime('%d-%d-%d' % (dt.year, dt.month, dt.day), '%Y-%m-%d')
+            dt =  dt.replace(hour=0, minute=0, second=0)
+            if keepyear or keepmonth:
+                dt = dt.replace(day=1)
+            if keepyear:
+                dt = dt.replace(month=1)
+            ts = dt.timestamp()
+            offset = '+0000'
+        else:
+            dt = datetime.strptime(date, '%Y-%m-%d %H:%M:%S %z')
+            ts = int(dt.timestamp())
+            if dt.utcoffset():
+                offset_seconds = int(dt.utcoffset().total_seconds())
+                offset_hours = offset_seconds // 60
+                offset_mins = offset_seconds % 60
+                offset_sign = '+' if offset_seconds >= 0 else '-'
+                offset = '%s%02d%02d' % (offset_sign, offset_hours, offset_mins)
             else:
-                dt = datetime.strptime(date, '%Y-%m-%d %H:%M:%S %z')
-                ts = int(dt.timestamp())
+                offset = '+0000'
 
-                # handle timezone
-                if dt.utcoffset():
-                    offset_seconds = int(dt.utcoffset().total_seconds())
-                    offset_hours = offset_seconds // 60
-                    offset_mins = offset_seconds % 60
-                    offset_sign = '+' if offset_seconds >= 0 else '-'
-                    offset = '%s%02d%02d' % (offset_sign, offset_hours, offset_mins)
-                else:
-                    offset = '+0000'
+        date_encoded = b'%d %s' % (ts, offset.encode())
+        author_date = date_encoded
+        committer_date = date_encoded
 
-            # date formartted
-            date_as_bytes = b'%d %s' % (ts, offset.encode())
-            commit.author_date = commit.committer_date = date_as_bytes
+    if dryrun != 1:
+        commit.author_name = author_name
+        commit.author_email = author_email
+        commit.author_date = author_date
+        commit.committer_name = committer_name
+        commit.committer_email = committer_email
+        commit.committer_date = committer_date
+    else:
+        f = open('${dryrun_file}', 'a')
+        f.write('Commit:')
+
+        an = commit.author_name.decode()
+        ae = commit.author_email.decode()
+        ad = parse_git_date(commit.author_date).isoformat()
+        new_an = author_name.decode()
+        new_ae = author_email.decode()
+        new_ad = parse_git_date(author_date).isoformat()
+
+        cn = commit.committer_name.decode()
+        ce = commit.committer_email.decode()
+        cd = parse_git_date(commit.committer_date).isoformat()
+        new_cn = committer_name.decode()
+        new_ce = committer_email.decode()
+        new_cd = parse_git_date(committer_date).isoformat()
+
+        id = commit.original_id.decode()
+
+        f.write(id)
+        f.write('Author: %s <%s> (%s) -> %s <%s> (%s)\n' % (an, ae, ad, new_an, new_ae, new_ad))
+        f.write('Committer: %s <%s> (%s) -> %s <%s> (%s)\n' % (cn, ce, cd, new_cn, new_ce, new_cd))
+        f.write('\n')
+        f.close()
 " --refs HEAD >&2
+
+if [[ "$ANON_GIT_DRYRUN" -eq 1 && -f "$dryrun_file" ]]; then
+    cat "$dryrun_file"
+fi
 
 printf 'Done. History has been rewritten.\n'
