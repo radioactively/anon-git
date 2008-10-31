@@ -199,46 +199,41 @@ fi
 # ──────────────────────────────────────────────────────────────────────
 # REWRITE LOGIC
 
-# Export values for python callback and run it
-export TARGET_COMMIT ANON_GIT_DATE ANON_GIT_NAME ANON_GIT_EMAIL ANON_GIT_KEEPUSER ANON_GIT_KEEPDATE
-git filter-repo --force --commit-callback '
-    from os import environ
+git filter-repo --force --commit-callback "
     from datetime import datetime
 
-    env = environ
-    target = env["TARGET_COMMIT"]
+    target = '${TARGET_COMMIT}'
+    name  = '${ANON_GIT_NAME}'
+    email = '${ANON_GIT_EMAIL}'
+    date = '${ANON_GIT_DATE}'
 
-    if commit.original_id == target.encode("utf-8"):
-        keepuser = env["ANON_GIT_KEEPUSER"]
-        keepdate = env["ANON_GIT_KEEPDATE"]
+    keepuser = ${ANON_GIT_KEEPUSER}
+    keepdate = ${ANON_GIT_KEEPDATE}
+    keepyear = ${ANON_GIT_KEEPYEAR}
+    keepmonth = ${ANON_GIT_KEEPMONTH}
+    keepday = ${ANON_GIT_KEEPDAY}
 
-        if keepuser == "0":
-            name  = env["ANON_GIT_NAME"].encode("utf-8")
-            email = env["ANON_GIT_EMAIL"].encode("utf-8")
-            commit.author_name = commit.committer_name = name
-            commit.author_email = commit.committer_email = email
+    if commit.original_id == target.encode():
+        if keepuser != 1:
+            commit.author_name = commit.committer_name = name.encode()
+            commit.author_email = commit.committer_email = email.encode()
 
-        if keepdate == "0":
-            date_str = env["ANON_GIT_DATE"]
-
+        if keepdate != 1:
             # date object
-            dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S %z")
-
-            # timestamp integer without tz
+            dt = datetime.strptime(date, '%Y-%m-%d %H:%M:%S %z')
             ts = int(dt.timestamp())
 
             # timezone as bytes
             offset_seconds = int(dt.utcoffset().total_seconds())
             offset_hours = offset_seconds // 60
             offset_mins = offset_seconds % 60
-            sign = "+" if offset_seconds >= 0 else "-"
-            offset_bytes = ("%s%02d%02d" % (sign, offset_hours, offset_mins)).encode("utf-8")
+            sign = '+' if offset_seconds >= 0 else '-'
+            offset_bytes = ('%s%02d%02d' % (sign, offset_hours, offset_mins)).encode()
 
             # date formartted
-            date = b"%d %s" % (ts, offset_bytes)
-
+            date = b'%d %s' % (ts, offset_bytes)
             commit.author_date = commit.committer_date = date
-' --refs HEAD >&2
+" >&2
 
 # Refresh index if we rewrote HEAD
 if [ "${TARGET_COMMIT}" = "$(git rev-parse HEAD)" ]; then
