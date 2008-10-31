@@ -395,11 +395,15 @@ git filter-repo --force --commit-callback "
         new_cd = parse_git_date(committer_date).isoformat()
 
         id = commit.original_id.decode()
+        msg = commit.message.decode()
+        sep = '\n' + '-' * 80 + '\n'
 
         f.write('%s\n' % id)
         f.write('Author: %s <%s> (%s) -> %s <%s> (%s)\n' % (an, ae, ad, new_an, new_ae, new_ad))
         f.write('Committer: %s <%s> (%s) -> %s <%s> (%s)\n' % (cn, ce, cd, new_cn, new_ce, new_cd))
         f.write('\n')
+        f.write(msg)
+        f.write(sep)
         f.close()
         return
 
