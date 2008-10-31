@@ -12,6 +12,7 @@ DEFAULT_KEEPYEAR='0'
 DEFAULT_KEEPMONTH='0'
 DEFAULT_KEEPDAY='0'
 DEFAULT_ENTIREHISTORY='0'
+DEFAULT_CURRENTBRANCH='0'
 DEFAULT_COMMIT=$(git rev-parse HEAD)
 
 # ──────────────────────────────────────────────────────────────────────
@@ -35,6 +36,7 @@ Options:
   --keep-day                      Do not change commit day (and year and month)
   --no-confirm                    Do not prompt for confirmation
   --no-backup                     Do not create backup branch
+  --current-branch                Overwrite current branch instead of creating a copy of it
   --entire-history                Rewrite entire history and not a single commit
 
 Arguments:
@@ -69,6 +71,7 @@ KEEPDAY_ARG=""
 NOCONFIRM_ARG=""
 NOBACKUP_ARG=""
 ENTIREHISTORY_ARG=""
+CURRENTBRANCH_ARG=""
 COMMIT_ARG=""
 COMMITS_ARG=()
 
@@ -119,6 +122,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --entire-history)
             ENTIREHISTORY_ARG='1'
+            shift
+            ;;
+        --current-branch)
+            CURRENTBRANCH_ARG='1'
             shift
             ;;
         --commit)
@@ -187,10 +194,11 @@ ANON_GIT_KEEPYEAR="${KEEPYEAR_ARG:-${ANON_GIT_KEEPYEAR:-${DEFAULT_KEEPYEAR}}}"
 ANON_GIT_KEEPMONTH="${KEEPMONTH_ARG:-${ANON_GIT_KEEPMONTH:-${DEFAULT_KEEPMONTH}}}"
 ANON_GIT_KEEPDAY="${KEEPDAY_ARG:-${ANON_GIT_KEEPDAY:-${DEFAULT_KEEPDAY}}}"
 ANON_GIT_ENTIREHISTORY="${ENTIREHISTORY_ARG:-${ANON_GIT_ENTIREHISTORY:-${DEFAULT_ENTIREHISTORY}}}"
+ANON_GIT_CURRENTBRANCH="${CURRENTBRANCH_ARG:-${ANON_GIT_CURRENTBRANCH:-${DEFAULT_CURRENTBRANCH}}}"
 ANON_GIT_COMMIT="${COMMIT_ARG:-${DEFAULT_COMMIT}}"
 
 # ──────────────────────────────────────────────────────────────────────
-# CONFIRMATION
+# VERBOSE INFO
 
 if [[ -z "$ENTIREHISTORY_ARG" ]]; then
     short_commit=$(echo "$ANON_GIT_COMMIT" | xargs -n 1 git rev-parse --short | tr '\n' ' ')
@@ -216,20 +224,32 @@ if [[ -n "$KEEPDAY_ARG" ]]; then
 fi
 printf '\n'
 
+# ──────────────────────────────────────────────────────────────────────
+# BACKUP BRANCH
+
+current_branch=$(git branch --show-current)
+date=$(date +%F_%R:%S:%N)
+
+if [[ "${ANON_GIT_CURRENTBRANCH}" != '1' ]]; then
+    new_branch="${current_branch}_anonymized_${date}"
+    git switch --create "$new_branch"
+    printf 'Created new branch %s from %s\n' "$new_branch" "$current_branch"
+    printf 'Using branch %s to rewrite commits.\n' "$new_branch"
+elif [[ "$NOBACKUP_ARG" != "1" ]]; then
+    backup_branch="${current_branch}_backup_${date}"
+    git branch "${backup_branch}"
+    printf 'Created backup branch %s from %s\n' "$backup_branch" "$current_branch"
+    printf 'Using branch %s to rewrite commits\n' "$current_branch"
+else
+    printf 'WARNING! Overwriting existing branch %s without backup!\n' "$current_branch"
+fi
+# ──────────────────────────────────────────────────────────────────────
+# CONFIRMATION
+
 if [[ "$NOCONFIRM_ARG" != '1' ]]; then
     read -p "Continue? (y/N) " -n 1 -r
     printf '\n'
     [[ $REPLY =~ ^[Yy]$ ]] || exit 1
-fi
-
-# ──────────────────────────────────────────────────────────────────────
-# BACKUP BRANCH
-
-if [[ "$NOBACKUP_ARG" != "1" ]]; then
-    backup_branch="backup-anon-git-$(date +%Y%m%d-%H%M%S)"
-    git branch "${backup_branch}"
-    printf 'Created backup branch: %s\n\n' "${backup_branch}"
-    printf 'Rewriting commit...\n\n'
 fi
 
 # ──────────────────────────────────────────────────────────────────────

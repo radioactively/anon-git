@@ -94,6 +94,9 @@ test_script() {
   OLD_DATE=$(git show --format='%ai %ci' "$commit_hash")
   OLD_COMMITS=$(git log --format="$commit_format" | grep --invert-match "$commit_hash" | sed 's/^[0-9a-f]\+//')
 
+  # Store current branch because the script by default will create a new one
+  original_branch=$(git branch --show-current)
+
   # Run script
   cmd="./${SCRIPT_NAME} ${args[*]} HEAD~${random_index}"
   printf 'Running %s\n' "$cmd"
@@ -162,6 +165,9 @@ test_script() {
     printf 'Test %s failed with %s errors.\n\n' "$CURRENT_TEST_INDEX" "$errors"
   fi
   TOTAL_ERRORS=$(( TOTAL_ERRORS + errors ))
+
+  # switch to original branch
+  git switch "$original_branch"
 }
 
 cleanup() {
