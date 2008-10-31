@@ -1,15 +1,51 @@
 #!/usr/bin/env bash
-# anonymize-last-commit.sh   (can be used as .git/hooks/post-commit or standalone)
+# anonymize-git-commit.sh
 #
 # Anonymizes author/committer name/email and sets both dates to GIT_ANON_DATE
 # for a single specified commit (defaults to HEAD).
 #
 # Usage:
-#   ./anonymize-last-commit.sh           # anonymize HEAD
-#   ./anonymize-last-commit.sh abc1234   # anonymize commit abc1234
-#   ./anonymize-last-commit.sh HEAD~3    # anonymize 3 commits ago
+#   ./anonymize-last-commit.sh [OPTIONS] [commit]
+#
+# Options:
+#   -h, --help      Show this help message and exit
+#
+# Arguments:
+#   commit          Commit to anonymize (hash, HEAD~n, branch name, etc.)
+#                   If omitted, defaults to HEAD (most recent commit)
 
 set -euo pipefail
+
+show_help() {
+    cat << 'EOF'
+Anonymize a single git commit's author, committer, and dates.
+
+Usage:
+  ./anonymize-last-commit.sh [OPTIONS] [commit]
+
+Options:
+  -h, --help      Show this help message and exit
+
+Arguments:
+  commit          Commit to anonymize (can be: hash, HEAD~3, branch, tag, ...)
+                  If omitted, defaults to HEAD
+
+Environment variables (optional):
+  GIT_ANON_DATE           Date to use (default: 2008-10-31 18:15:42 +0000)
+  GIT_ANON_USERNAME       Name to use     (default: Satoshi Nakamoto)
+  GIT_ANON_USEREMAIL      Email to use    (default: satoshi@gmx.com)
+
+Examples:
+  ./anonymize-last-commit.sh
+  ./anonymize-last-commit.sh HEAD~2
+  ./anonymize-last-commit.sh abc1234def5678
+  GIT_ANON_DATE="2024-06-15 12:00:00 +0200" ./anonymize-last-commit.sh
+
+Note: Rewriting commits changes their hashes and all descendant commits.
+      You will usually need to force-push afterwards.
+EOF
+    exit 0
+}
 
 # ──────────────────────────────────────────────
 #   CONFIGURATION
@@ -25,11 +61,18 @@ GIT_ANON_USEREMAIL="${GIT_ANON_USEREMAIL:-${DEFAULT_GIT_ANON_USEREMAIL}}"
 
 # ──────────────────────────────────────────────
 
+# Handle help flag
+case "${1:-}" in
+    -h|--help)
+        show_help
+        ;;
+esac
+
 TARGET_COMMIT="${1:-HEAD}"
 
 # Validate that the target commit exists
 if ! git rev-parse --quiet --verify "${TARGET_COMMIT}^{commit}" >/dev/null 2>&1; then
-    printf 'Error: Commit %s does not exist or is not a commit object.\n' "${TARGET_COMMIT}" >&2
+    printf 'Error: Commit "%s" does not exist or is not a commit object.\n' "${TARGET_COMMIT}" >&2
     exit 1
 fi
 
@@ -70,7 +113,6 @@ git filter-repo \
             offset_sec = dt.utcoffset().total_seconds() if dt.utcoffset() else 0
             commit.author_offset = commit.committer_offset = int(offset_sec // 60)
         except Exception:
-            # Hard fallback — Halloween 2008
             commit.author_date = commit.committer_date = 1225481742
             commit.author_offset = commit.committer_offset = 0
   ' \
