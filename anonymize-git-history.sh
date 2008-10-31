@@ -1,24 +1,37 @@
 #!/usr/bin/env bash
 
+# ──────────────────────────────────────────────────────────────────────
+# DEFAULTS
+
+DEFAULT_DATE='2008-10-31 18:15:42 +0000'
+DEFAULT_NAME='Satoshi Nakamoto'
+DEFAULT_EMAIL='satoshi@gmx.com'
+DEFAULT_KEEPUSER='0'
+DEFAULT_KEEPDATE='0'
+
+# ──────────────────────────────────────────────────────────────────────
+# HELP
+
 show_help() {
-    cat << 'EOF'
+    cat << EOF
 Anonymize the entire git history of the current branch.
 
 Usage:
   ./anonymize-git-history.sh [OPTIONS]
 
 Options:
-  -h, --help                    Show this help message and exit
-  --date      ISO Date          Date to use for ALL commits (example: "2025-03-10 13:37:00 +0000")
-  --name      "Full Name"       Name to use for author & committer
-  --email     email@domain.com  Email to use for author & committer
-  --keep-user                   Do not change user name or author
-  --keep-date                   Do not change date
+  -h, --help                      Show this help message and exit
+  --date      "ISO date"          Date to use for ALL commits (example: "2025-03-10 13:37:00 +0000")
+  --name      "Full name"         Name to use for author & committer
+  --email     "Email address"     Email to use for author & committer
+  --keep-user                     Do not change user name or author
+  --keep-date                     Do not change date
+  --no-confirm                    Do not prompt for confirmation
 
 Priority (highest to lowest):
-  1. Command-line flags (--date, --name, --email)
-  2. Environment variables (ANONGIT_DATE, GIT_ANON_USERNAME, GIT_ANON_USEREMAIL)
-  3. Hardcoded defaults
+  1. Command-line flags (--date, --name, --email, --keep-user, --keep-date)
+  2. Environment variables (ANON_GIT_DATE, ANON_GIT_NAME, ANON_GIT_EMAIL, ANON_GIT_KEEPUSER, ANON_GIT_KEEPDATE)
+  3. Hardcoded defaults (${DEFAULT_NAME} <${DEFAULT_EMAIL}>)
 
 Examples:
   ./anonymize-git-history.sh
@@ -27,25 +40,15 @@ EOF
     exit 0
 }
 
-# ──────────────────────────────────────────────
-#   DEFAULT VALUES
-# ──────────────────────────────────────────────
-
-DEFAULT_DATE='2008-10-31 18:15:42 +0000'
-DEFAULT_NAME='Satoshi Nakamoto'
-DEFAULT_EMAIL='satoshi@gmx.com'
-DEFAULT_KEEPUSER='0'
-DEFAULT_KEEPDATE='0'
-
-# ──────────────────────────────────────────────
-#   PARSE ARGUMENTS
-# ──────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────
+# PARSE ARGUMENTS
 
 DATE_ARG=""
 NAME_ARG=""
 EMAIL_ARG=""
 KEEPUSER_ARG=""
 KEEPDATE_ARG=""
+NOCONFIRM_ARG=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -72,6 +75,10 @@ while [[ $# -gt 0 ]]; do
             KEEPDATE_ARG='1'
             shift
             ;;
+        --no-confirm)
+            NOCONFIRM_ARG='1'
+            shift
+            ;;
         -*)
             printf 'Unknown option: %s\n' "$1" >&2
             exit 1
@@ -83,19 +90,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# ──────────────────────────────────────────────
-#   Resolve final values (flags > env > default)
-# ──────────────────────────────────────────────
-
-ANON_GIT_DATE="${DATE_ARG:-${ANON_GIT_DATE:-${DEFAULT_DATE}}}"
-ANON_GIT_NAME="${NAME_ARG:-${ANON_GIT_USERNAME:-${DEFAULT_NAME}}}"
-ANON_GIT_EMAIL="${EMAIL_ARG:-${ANON_GIT_USEREMAIL:-${DEFAULT_EMAIL}}}"
-ANON_GIT_KEEPUSER="${KEEPUSER_ARG:-${ANON_GIT_KEEPUSER:-${DEFAULT_KEEPUSER}}}"
-ANON_GIT_KEEPDATE="${KEEPDATE_ARG:-${ANON_GIT_KEEPDATE:-${DEFAULT_KEEPDATE}}}"
-
-# ──────────────────────────────────────────────
-#   Validation
-# ──────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────
+# VALIDATE ARGS
 
 if [[ "$KEEPUSER_ARG" == '1' && "$KEEPDATE_ARG" == '1' ]]; then
     printf 'Error: the flags --keep-user and --keep-date cannot be used together!\n' >&2
@@ -117,9 +113,17 @@ if [[ "$KEEPDATE_ARG" == '1' && "$DATE_ARG" != '' ]]; then
     exit 1
 fi
 
-# ──────────────────────────────────────────────
-#   CONFIRMATION
-# ──────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────
+# RESOLVE VALUES
+
+ANON_GIT_DATE="${DATE_ARG:-${ANON_GIT_DATE:-${DEFAULT_DATE}}}"
+ANON_GIT_NAME="${NAME_ARG:-${ANON_GIT_NAME:-${DEFAULT_NAME}}}"
+ANON_GIT_EMAIL="${EMAIL_ARG:-${ANON_GIT_EMAIL:-${DEFAULT_EMAIL}}}"
+ANON_GIT_KEEPUSER="${KEEPUSER_ARG:-${ANON_GIT_KEEPUSER:-${DEFAULT_KEEPUSER}}}"
+ANON_GIT_KEEPDATE="${KEEPDATE_ARG:-${ANON_GIT_KEEPDATE:-${DEFAULT_KEEPDATE}}}"
+
+# ──────────────────────────────────────────────────────────────────────
+# CONFIRM
 
 printf '\n%s\n\n' "WARNING: This will REWRITE ALL commit hashes!" >&2
 printf '         You will need to force-push afterwards.\n\n' >&2
@@ -127,20 +131,24 @@ printf 'Values that will be used:\n' >&2
 [[ $ANON_GIT_KEEPUSER == '0' ]] && printf '  Identity : %s <%s>\n' "${ANON_GIT_NAME}" "${ANON_GIT_EMAIL}" >&2
 [[ $ANON_GIT_KEEPDATE == '0' ]] && printf '  Date     : %s  (same timestamp on EVERY commit)\n' "${ANON_GIT_DATE}" >&2
 printf '\n' >&2
-read -p "Continue? (y/N) " -n 1 -r
-printf '\n'
-[[ $REPLY =~ ^[Yy]$ ]] || exit 1
+
+if [[ "$NOCONFIRM_ARG" != '1' ]]; then
+    read -p "Continue? (y/N) " -n 1 -r
+    printf '\n'
+    [[ $REPLY =~ ^[Yy]$ ]] || exit 1
+fi
+
+# ──────────────────────────────────────────────────────────────────────
+# REWRITE LOGIC
 
 # Create backup branch
-backup_branch="backup-anon-$(date +%Y%m%d-%H%M%S)"
+backup_branch="backup-anon-git-$(date +%Y%m%d-%H%M%S)"
 git branch "${backup_branch}"
 printf 'Created backup branch: %s\n\n' "${backup_branch}" >&2
-
-# Export values for python callback
-export ANON_GIT_DATE ANON_GIT_NAME ANON_GIT_EMAIL ANON_GIT_KEEPUSER ANON_GIT_KEEPDATE
-
 printf 'Rewriting all commits...\n\n' >&2
 
+# Export values for python callback and run it
+export ANON_GIT_DATE ANON_GIT_NAME ANON_GIT_EMAIL ANON_GIT_KEEPUSER ANON_GIT_KEEPDATE
 git filter-repo --force --commit-callback '
     from os import environ
     from datetime import datetime
@@ -159,7 +167,7 @@ git filter-repo --force --commit-callback '
     if keepdate == "0":
         date_str = env["ANON_GIT_DATE"]
 
-        # Convert date string to date object, then to bytes
+        # convert date string to date object, then to bytes
         dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S %z")
         ts = int(dt.timestamp())
         offset_min = int(dt.utcoffset().total_seconds() / 60) if dt.utcoffset() else 0
