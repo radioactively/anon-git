@@ -106,32 +106,33 @@ export INSIDE_GIT_HOOK_REWRITING=1
 export ANON_DATE ANON_NAME ANON_EMAIL
 export TARGET_COMMIT_HASH="$(git rev-parse "${TARGET_COMMIT}")"
 
-git filter-repo \
-  --force \
-  --commit-callback '
-    import os
+git filter-repo --force --commit-callback '
+    from os import environ
     from datetime import datetime
 
-    target = os.environ["TARGET_COMMIT_HASH"]
+    env = environ
+    target = env["TARGET_COMMIT_HASH"]
 
-    if commit.original_id.hex() == target:
-        name  = os.environ["ANON_NAME"].encode()
-        email = os.environ["ANON_EMAIL"].encode()
-        date_str = os.environ["ANON_DATE"]
+    name  = env["ANON_NAME"].encode("utf-8")
+    email = env["ANON_EMAIL"].encode("utf-8")
+    date_str = env["ANON_DATE"]
 
-        commit.author_name      = name
-        commit.author_email     = email
-        commit.committer_name   = name
-        commit.committer_email  = email
+    commit.author_name = commit.committer_name   = name
+    commit.author_email = commit.committer_email  = email
 
-        try:
-            dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S %z")
-            commit.author_date = commit.committer_date = int(dt.timestamp())
-            offset_sec = dt.utcoffset().total_seconds() if dt.utcoffset() else 0
-            commit.author_offset = commit.committer_offset = int(offset_sec // 60)
-        except Exception:
-            commit.author_date = commit.committer_date = 1225481742
-            commit.author_offset = commit.committer_offset = 0
+    # Convert date string to date object, then to bytes
+    dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S %z")
+    ts = int(dt.timestamp())
+    offset_min = int(dt.utcoffset().total_seconds() / 60) if dt.utcoffset() else 0
+    offset_hours = abs(offset_min) // 60
+    offset_mins = abs(offset_min) % 60
+    sign = "+" if offset_min >= 0 else "-"
+    offset_bytes = ("%s%02d%02d" % (sign, offset_hours, offset_mins)).encode("utf-8")
+    date = b"%d %s" % (ts, offset_bytes)
+
+    commit.author_name = commit.committer_name = name
+    commit.author_email = commit.committer_email = email
+    commit.author_date = commit.committer_date = date
   ' \
   --refs "${TARGET_COMMIT}" >&2
 
