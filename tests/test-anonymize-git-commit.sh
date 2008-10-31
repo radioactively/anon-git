@@ -24,16 +24,16 @@ for i in $(seq 1 "$commit_count"); do
   git commit -m "Add file $filename" >/dev/null
 done
 
+# Pick hand commit index
+rand_commit=$(printf '%d\n' "$((1 + $(od -An -N2 -tu2 </dev/urandom) % (commit_count - 1)))")
+commit_hash=$(git rev-parse "HEAD~${rand_commit}")
+
 # Run script
-echo y | bash ./${SCRIPT_NAME} >/dev/null 2>&1
+echo y | bash ./${SCRIPT_NAME} "$commit_hash" >/dev/null 2>&1
 
-# Store log
-commit=$(git log --format=oneline | cut -f 1 -d ' ' | shuf | head -n 1)
-LOG=$(git show --pretty=fuller --date=iso --no-patch "$commit")
-
-# Cleanup
-cd - >/dev/null || exit 0
-rm -rf "$TMP_DIR"
+# New commit hash
+new_commit_hash=$(git rev-parse "HEAD~${rand_commit}")
+LOG=$(git show --pretty=fuller --no-patch --date=iso "$new_commit_hash")
 
 # Check results
 
@@ -69,9 +69,15 @@ if [[ "$commiter_date_matches" -ne 1 ]]; then
   errors=$(( errors + 1 ))
 fi
 
+
 ## Show results.
 if [[ "$errors" -eq 0 ]]; then
   printf 'Test passed.\n'
 else
   printf "Test failed with %s errors.\n" "$errors"
 fi
+
+# Cleanup
+cd - >/dev/null || exit 0
+rm -rf "$TMP_DIR"
+exit
