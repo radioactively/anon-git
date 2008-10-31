@@ -2,7 +2,7 @@
 
 AnonGit is a script to **anonymize** git commit authorship and timestamp.
 
-Useful when you want to contribute to privacy-sensitive, anti-surveillance, or censorship-resistant open-source projects **without linking your real identity** to your contributions through commit metadata.
+Useful when you want to contribute to privacy-sensitive, anti-surveillance, or censorship-resistant open-source projects **without leaking information** from your commit **timestamps** and **email**.
 
 The script can:
 
@@ -16,7 +16,15 @@ The script can:
 
 ## Why anonymize Git commits?
 
-Many privacy & freedom-oriented projects prefer (or even require) contributors to avoid leaking personal metadata:
+Even when using Tor and throwaway GitHub accounts, your **commit timestamps** can still deanonymize you over time:
+
+- timezone may be linked to location
+- time of commit may be linked to work and routine schedules
+- day of the week may be linked workdays and religious/cultural practices (rest days)
+- day and month may be linked to holidays, festivals and cultural/religious events
+- cadence between commits may leak information about commit frequency and coding pace, revealing personal development patterns (some developers commit frequently, while others code more before committing)
+
+Many privacy & freedom-oriented projects would prefer contributors to avoid leaking personal information:
 
 - **Internet anonymity**
   - Tor Browser
@@ -45,8 +53,6 @@ Many privacy & freedom-oriented projects prefer (or even require) contributors t
 
 (The list above is not meant to be a compilation of privacy tools, but merely examples of projects whose contributors may wish to stay anonymous).
 
-Even when using Tor and throwaway GitHub accounts, your **commit timestamps** can still deanonymize you over time, especially when combined with contribution patterns, timezone hints, typing cadence in commit messages, etc. The scripts here help reduce that metadata footprint.
-
 ## Pre-requisites
 
 Both scripts are based on `git filter-repo` (much faster & safer than `filter-branch`).
@@ -71,7 +77,7 @@ pip install git-filter-repo
 
 This repository contains a script called `anon-git`, which relies upon `git
 filter-repo`. Download it or copy-paste into a file. Execute them from inside
-a git respository either directly `./anon-git.sh` or from your `$PATH`.
+a git repository either directly `./anon-git.sh` or from your `$PATH`.
 
 **For safety, the script creates a backup branch before rewriting history.
 
@@ -188,7 +194,7 @@ You can automatically anonymize **every new commit right after** you run `git co
    # Run anonymization on HEAD (the commit we just created)
    #
    # IMPORTANT: Customize flags/environment variables here before running it!
-   "$SCRIPT" --no-confirm HEAD
+   "$SCRIPT" --no-confirm --current-branch HEAD
 
    # Optional: show what changed
    echo "Last commit anonymized:"
@@ -204,25 +210,22 @@ You can automatically anonymize **every new commit right after** you run `git co
 
 Now every `git commit` automatically triggers anonymization of that commit's author name, email, and dates (using your script's defaults, environment variables, or flags you hard-code in the hook).
 
-**Important notes**:
-
-- The hook rewrites the commit, changes its hash. If you already pushed, you'll need `git push --force-with-lease` afterward (dangerous on shared branches!)
-- Best used on personal/feature branches you control
-- To temporarily disable: `chmod -x .git/hooks/post-commit`
-- Consider using environment variables (`export ANON_GIT_NAME="..."` etc.) instead of hard-coding flags in the hook
-
-This gives seamless "anonymous-by-default" committing while still allowing manual overrides via normal `git commit --author=... --date=...` when needed.
-
 ## Important notes
 
-- Backup branch is created with original commit history
-- You can recover with `git reflog` / `git reset` if something goes wrong even if you use `--no-backup`
-- `--keep-user` and `--keep-date` are useful for partial anonymization
+- The script, by default, uses a new branch instead of rewriting the current. It can be changed via `--current-branch` flag.
+- The script, by default, creates a backup branch when using `--current-branch` flag.
+- The script is most useful on branches you have full control of the branch
+- The script is most useful for commits that have not been published to remote branches and forges
+- If the repository is public and has been cloned/forked, then the script may become useless since the old copies of the git history were not rewritten
+- If you pushed before using the script, you'll need `git push --force-with-lease` afterward (dangerous on shared branches!)
+- You can recover with `git reflog` / `git reset` if something goes wrong even if you use `--current-branch` and `--no-backup`
+- The flags `--keep-user` and `--keep-date` are useful for partial anonymization
 - Timestamps must be in a format `git` understands (ISO 8601 with timezone recommended)
+- To temporarily disable the hook run `chmod -x .git/hooks/post-commit`
+- Consider using environment variables (`export ANON_GIT_NAME="..."` etc.) instead of hard-coding flags in the hook
 
 ## Additional security notes
 
-- AnonGit **remove metadata only** — it does **not** hide IP addresses, contribution timing correlations, writing style, code patterns, etc.
-- For higher opsec, use anonymous accounts not tied to personal identity
+- AnonGit is most useful to anonymize timestamp metadata along with anonymous email and name. If you leak personal data via public forges (GitHub, GitLab, Codeberg, SourceHut) the script becomes useless.
+- AnonGit **only removes metadata** — it does **not** hide IP addresses, contribution timing correlations, writing style, code patterns, etc.
 - Consider squashing commits or using merge requests from anonymous remotes
-- Beaware when you publish to public forges (GitHub, GitLab, Codeberg, ...)
