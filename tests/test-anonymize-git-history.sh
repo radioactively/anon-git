@@ -1,12 +1,14 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
 # Assume anonymize-git-history.sh is in the parent directory
-SCRIPT="../anonymize-git-history.bash"
+SCRIPT_DIR=$(realpath "$(dirname $0)/..")
+SCRIPT_NAME=anonymize-git-history.sh
+SCRIPT=${SCRIPT_DIR}/${SCRIPT_NAME}
 
 # Create temp dir
-TMP_DIR=$(mktemp -d /tmp/git_test_hist.XXXXXX)
+TMP_DIR=$(mktemp -d /tmp/anon_git_test_hist.XXXXXX)
 cp "$SCRIPT" "$TMP_DIR"
 cd "$TMP_DIR" || exit 1
 
@@ -24,14 +26,14 @@ for i in $(seq 1 5); do
 done
 
 # run script
-yes | bash ./anonymize-git-history.bash
+echo y | bash ./${SCRIPT_NAME} >/dev/null 2>&1
 
 # Check new log
-NEW_LOG=$(git log --pretty=fuller)
+NEW_LOG=$(git log --pretty=fuller --date=iso)
 
 # Verify changes
 if [[ $NEW_LOG == *'Satoshi Nakamoto'* ]] && [[ $NEW_LOG == *'satoshi@gmx.com'* ]] && [[ $NEW_LOG == *'2008-10-31'* ]]; then
-  echo "Test passed: History anonymized."
+  echo "Test passed: history anonymized."
 else
   echo "Test failed."
 fi
@@ -39,5 +41,3 @@ fi
 # Cleanup
 cd -
 rm -rf "$TMP_DIR"
-
-echo "Cleanup done."
