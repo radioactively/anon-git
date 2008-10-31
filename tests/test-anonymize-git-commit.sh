@@ -24,16 +24,24 @@ for i in $(seq 1 "$commit_count"); do
   git commit -m "Add file $filename" >/dev/null
 done
 
-# Pick hand commit index
-rand_commit=$(printf '%d\n' "$((1 + $(od -An -N2 -tu2 </dev/urandom) % (commit_count - 1)))")
-commit_hash=$(git rev-parse "HEAD~${rand_commit}")
+# Pick random commit
+random_index=$(( $(od -An -N2 -tu2 </dev/urandom) % (commit_count - 1) ))
+commit_hash=$(git rev-parse "HEAD~${random_index}")
+
+# store old logs (except commit to be modified)
+commit_format='%H %an <%aE> (%ai) %cn <%cE> (%ci)'
+COMMITS_OLD=$(git log --format="$commit_format" | grep --invert-match "$commit_hash" | sed 's/^[0-9a-f]\+//')
 
 # Run script
 echo y | bash ./${SCRIPT_NAME} "$commit_hash" >/dev/null 2>&1
 
+# store new logs (except modified commit)
+new_commit_hash=$(git rev-parse "HEAD~${random_index}")
+COMMITS_NEW=$(git log --format="$commit_format" | grep --invert-match "$new_commit_hash" | sed 's/^[0-9a-f]\+//')
+
 # New commit hash
-new_commit_hash=$(git rev-parse "HEAD~${rand_commit}")
-LOG=$(git show --pretty=fuller --no-patch --date=iso "$new_commit_hash")
+new_commit_hash=$(git rev-parse "HEAD~${random_index}")
+COMMIT_INFO=$(git show --pretty=fuller --no-patch --date=iso "$new_commit_hash")
 
 # Check results
 
@@ -45,10 +53,10 @@ expected_author="${default_name} <${default_email}>"
 expected_date="${default_date}"
 
 ## Real values
-author_matches=$(grep --count "^Author:\s\+${expected_author}" <<<"$LOG")
-commiter_matches=$(grep --count "^Commit:\s\+${expected_author}" <<<"$LOG")
-author_date_matches=$(grep --count "^AuthorDate:\s\+${expected_date}" <<<"$LOG")
-commiter_date_matches=$(grep --count "^CommitDate:\s\+${expected_date}" <<< "$LOG")
+author_matches=$(grep --count "^Author:\s\+${expected_author}" <<<"$COMMIT_INFO")
+commiter_matches=$(grep --count "^Commit:\s\+${expected_author}" <<<"$COMMIT_INFO")
+author_date_matches=$(grep --count "^AuthorDate:\s\+${expected_date}" <<<"$COMMIT_INFO")
+commiter_date_matches=$(grep --count "^CommitDate:\s\+${expected_date}" <<< "$COMMIT_INFO")
 
 ## Error feedback if any
 errors=0
@@ -68,7 +76,10 @@ if [[ "$commiter_date_matches" -ne 1 ]]; then
   printf 'Error: commiter date not overwrriten\n'
   errors=$(( errors + 1 ))
 fi
-
+if [[ "$COMMITS_OLD" != "$COMMITS_NEW" ]]; then
+  printf 'Error: other commits were affected!'
+  errors=$(( errors + 1))
+fi
 
 ## Show results.
 if [[ "$errors" -eq 0 ]]; then
