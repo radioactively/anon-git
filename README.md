@@ -53,6 +53,14 @@ Many privacy & freedom-oriented projects would prefer contributors to avoid leak
 
 (The list above is not meant to be a compilation of privacy tools, but merely examples of projects whose contributors may wish to stay anonymous).
 
+## Use cases
+
+- AnonGit **only removes metadata** — it does **not** hide IP addresses, contribution timing correlations, writing style, code patterns, etc.
+- AnonGit is most useful to anonymize timestamp metadata along with anonymous email and name. If you leak personal data via public forges (GitHub, GitLab, Codeberg, SourceHut) the script becomes useless.
+- AnonGit most useful on branches you have full control of the branch
+- AnonGit most useful for commits that have not been published to remote branches and forges
+- If the repository is public and has been cloned/forked, then the script may become useless since the old copies of the git history were not rewritten
+
 ## Pre-requisites
 
 Both scripts are based on `git filter-repo` (much faster & safer than `filter-branch`).
@@ -214,18 +222,10 @@ Now every `git commit` automatically triggers anonymization of that commit's aut
 
 - The script, by default, uses a new branch instead of rewriting the current. It can be changed via `--current-branch` flag.
 - The script, by default, creates a backup branch when using `--current-branch` flag.
-- The script is most useful on branches you have full control of the branch
-- The script is most useful for commits that have not been published to remote branches and forges
-- If the repository is public and has been cloned/forked, then the script may become useless since the old copies of the git history were not rewritten
-- If you pushed before using the script, you'll need `git push --force-with-lease` afterward (dangerous on shared branches!)
 - You can recover with `git reflog` / `git reset` if something goes wrong even if you use `--current-branch` and `--no-backup`
+- If you pushed before using the script, you'll need `git push --force-with-lease` afterward (dangerous on shared branches!)
 - The flags `--keep-user` and `--keep-date` are useful for partial anonymization
 - Timestamps must be in a format `git` understands (ISO 8601 with timezone recommended)
 - To temporarily disable the hook run `chmod -x .git/hooks/post-commit`
 - Consider using environment variables (`export ANON_GIT_NAME="..."` etc.) instead of hard-coding flags in the hook
-
-## Additional security notes
-
-- AnonGit is most useful to anonymize timestamp metadata along with anonymous email and name. If you leak personal data via public forges (GitHub, GitLab, Codeberg, SourceHut) the script becomes useless.
-- AnonGit **only removes metadata** — it does **not** hide IP addresses, contribution timing correlations, writing style, code patterns, etc.
 - Consider squashing commits or using merge requests from anonymous remotes
